@@ -53,7 +53,7 @@ class _BrowserScreenState extends State<BrowserScreen> {
                       alignment: Alignment.topCenter,
                       child: state.isInitialized
                           ? const BrowserWebviewBody()
-                          : const Center(child: CircularProgressIndicator()),
+                          : const SizedBox.shrink(),
                     ),
                   );
                 },
