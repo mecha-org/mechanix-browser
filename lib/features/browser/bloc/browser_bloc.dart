@@ -118,10 +118,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     );
 
     final controller = WebviewManager().createWebView(
-      loading: const Align(
-        alignment: Alignment.topCenter,
-        child: CircularProgressIndicator(),
-      ),
+      loading: const SizedBox.shrink(),
       injectUserScripts: injectUserScripts,
     );
 
