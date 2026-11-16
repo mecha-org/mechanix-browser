@@ -8,6 +8,7 @@ import 'package:mechanix_browser/core/utils/constants.dart';
 import 'package:mechanix_browser/core/utils/helpers.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/browser_download.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_bloc.dart';
+import 'package:mechanix_browser/features/browser/bloc/permission/permission_bloc.dart';
 import 'package:mechanix_browser/features/browser/data/models/bookmark.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_error_info.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
@@ -24,6 +25,9 @@ part 'browser_state.dart';
 
 class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   final DownloadBloc? downloadBloc;
+
+  /// Receives camera/mic/location/... requests from every tab's webview.
+  final PermissionBloc? permissionBloc;
 
   /// Repository managing local browser history persistency.
   HistoryRepository? _historyRepository;
@@ -64,7 +68,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   }
 
   /// Initializes a new instance of [BrowserBloc] and registers the event handlers.
-  BrowserBloc({this.downloadBloc}) : super(BrowserState.initial()) {
+  BrowserBloc({this.downloadBloc, this.permissionBloc}) : super(BrowserState.initial()) {
     on<BrowserInitialized>(_onInitialized);
     on<BrowserUrlLoadRequested>(_onUrlLoadRequested);
     on<BrowserGoBackRequested>(_onGoBack);
@@ -156,11 +160,31 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     bool isPrivate = false,
   }) {
     return WebviewEventsListener(
+      onPermissionRequest: (c, request) {
+        permissionBloc?.add(
+          PermissionRequested(
+            tabId: tabId,
+            controller: c,
+            request: request,
+            isPrivate: isPrivate,
+          ),
+        );
+      },
+      onPermissionDismissed: (c, requestId, isMedia) {
+        permissionBloc?.add(
+          PermissionDismissed(
+            controller: c,
+            requestId: requestId,
+            isMedia: isMedia,
+          ),
+        );
+      },
       onTitleChanged: (t) {
         add(BrowserTitleChanged(tabId: tabId, title: t));
       },
       onUrlChanged: (url) {
         add(BrowserUrlChanged(tabId: tabId, url: url));
+        permissionBloc?.add(PermissionTabNavigated(tabId: tabId, url: url));
 
         final Set<JavascriptChannel> jsChannels = {
           JavascriptChannel(
@@ -1446,6 +1470,34 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       }
     } catch (e, stackTrace) {
       AppLogger.w("Error loading URL: $e $stackTrace");
+    }
+  }
+
+  /// Keeps [permissionBloc] in step with tab lifetimes: drops prompts of
+  /// closed tabs and forgets private-session decisions once the last private
+  /// tab is gone. Done here so every path that removes tabs is covered.
+  @override
+  void onChange(Change<BrowserState> change) {
+    super.onChange(change);
+    final permissions = permissionBloc;
+    if (permissions == null) return;
+    final before = change.currentState;
+    final after = change.nextState;
+    if (identical(before.normalTabs, after.normalTabs) &&
+        identical(before.privateTabs, after.privateTabs)) {
+      return;
+    }
+    final remaining = {
+      for (final t in after.normalTabs) t.controller,
+      for (final t in after.privateTabs) t.controller,
+    };
+    for (final t in [...before.normalTabs, ...before.privateTabs]) {
+      if (!remaining.contains(t.controller)) {
+        permissions.add(PermissionControllerDisposed(t.controller));
+      }
+    }
+    if (before.privateTabs.isNotEmpty && after.privateTabs.isEmpty) {
+      permissions.add(const PermissionPrivateSessionEnded());
     }
   }
 

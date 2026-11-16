@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_notification_toast.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/browser_bottom_bar.dart';
+import 'package:mechanix_browser/features/browser/presentation/widgets/permission/permission_prompt_overlay.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/webview_body.dart';
 
 class BrowserScreen extends StatefulWidget {
@@ -77,6 +78,9 @@ class _BrowserScreenState extends State<BrowserScreen> {
                 ),
               ),
 
+              // Camera/mic/location/... prompt for the active tab, shown
+              // above the bottom bar.
+              const PermissionPromptOverlay(),
               const DownloadNotificationOverlay(),
             ],
           ),

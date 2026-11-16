@@ -398,4 +398,77 @@ class AppLocalizationsEn extends AppLocalizations {
   String downloadProgressOf(String received, String total) {
     return '$received of $total';
   }
+
+  @override
+  String permissionPromptTitle(String host) {
+    return '$host wants to';
+  }
+
+  @override
+  String get permissionCameraRequest => 'Use your camera';
+
+  @override
+  String get permissionMicrophoneRequest => 'Use your microphone';
+
+  @override
+  String get permissionLocationRequest => 'Know your location';
+
+  @override
+  String get permissionClipboardRequest => 'See text and images copied to the clipboard';
+
+  @override
+  String get permissionMidiRequest => 'Use your MIDI devices';
+
+  @override
+  String get permissionAllow => 'Allow';
+
+  @override
+  String get permissionBlock => 'Block';
+
+  @override
+  String get permissionNotNow => 'Not now';
+
+  @override
+  String get permissionPromptPrivateNote => 'In private mode, this choice is forgotten when you close all private tabs.';
+
+  @override
+  String get permissionCamera => 'Camera';
+
+  @override
+  String get permissionMicrophone => 'Microphone';
+
+  @override
+  String get permissionLocation => 'Location';
+
+  @override
+  String get permissionClipboard => 'Clipboard';
+
+  @override
+  String get permissionMidi => 'MIDI devices';
+
+  @override
+  String get sitePermissions => 'Site permissions';
+
+  @override
+  String get sitePermissionsEmpty => 'No site permissions yet';
+
+  @override
+  String get sitePermissionsEmptyHint => 'When you allow or block a site\'s request for your camera, microphone or location, it appears here.';
+
+  @override
+  String get sitePermissionAllowed => 'Allowed';
+
+  @override
+  String get sitePermissionBlocked => 'Blocked';
+
+  @override
+  String get sitePermissionResetSite => 'Reset permissions';
+
+  @override
+  String sitePermissionResetSiteConfirm(String host) {
+    return 'Forget all permissions for $host? The site will ask again next time.';
+  }
+
+  @override
+  String get reset => 'Reset';
 }

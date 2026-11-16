@@ -555,8 +555,107 @@
         "type": "String"
       }
     }
+  },
+  "permissionPromptTitle": "{host} wants to",
+  "@permissionPromptTitle": {
+    "description": "Title of the permission prompt; the requested permissions are listed below it",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "permissionCameraRequest": "Use your camera",
+  "@permissionCameraRequest": {
+    "description": "Prompt line for a camera request, completing '<site> wants to'"
+  },
+  "permissionMicrophoneRequest": "Use your microphone",
+  "@permissionMicrophoneRequest": {
+    "description": "Prompt line for a microphone request"
+  },
+  "permissionLocationRequest": "Know your location",
+  "@permissionLocationRequest": {
+    "description": "Prompt line for a location request"
+  },
+  "permissionClipboardRequest": "See text and images copied to the clipboard",
+  "@permissionClipboardRequest": {
+    "description": "Prompt line for a clipboard request"
+  },
+  "permissionMidiRequest": "Use your MIDI devices",
+  "@permissionMidiRequest": {
+    "description": "Prompt line for a MIDI request"
+  },
+  "permissionAllow": "Allow",
+  "@permissionAllow": {
+    "description": "Button that grants the requested permission"
+  },
+  "permissionBlock": "Block",
+  "@permissionBlock": {
+    "description": "Button that denies the requested permission"
+  },
+  "permissionNotNow": "Not now",
+  "@permissionNotNow": {
+    "description": "Tooltip of the button that closes the permission prompt without deciding"
+  },
+  "permissionPromptPrivateNote": "In private mode, this choice is forgotten when you close all private tabs.",
+  "@permissionPromptPrivateNote": {
+    "description": "Note shown on the permission prompt in private tabs"
+  },
+  "permissionCamera": "Camera",
+  "@permissionCamera": {
+    "description": "Short name of the camera permission"
+  },
+  "permissionMicrophone": "Microphone",
+  "@permissionMicrophone": {
+    "description": "Short name of the microphone permission"
+  },
+  "permissionLocation": "Location",
+  "@permissionLocation": {
+    "description": "Short name of the location permission"
+  },
+  "permissionClipboard": "Clipboard",
+  "@permissionClipboard": {
+    "description": "Short name of the clipboard permission"
+  },
+  "permissionMidi": "MIDI devices",
+  "@permissionMidi": {
+    "description": "Short name of the MIDI permission"
+  },
+  "sitePermissions": "Site permissions",
+  "@sitePermissions": {
+    "description": "Title of the site permissions screen"
+  },
+  "sitePermissionsEmpty": "No site permissions yet",
+  "@sitePermissionsEmpty": {
+    "description": "Shown on the site permissions screen when nothing is remembered"
+  },
+  "sitePermissionsEmptyHint": "When you allow or block a site's request for your camera, microphone or location, it appears here.",
+  "@sitePermissionsEmptyHint": {
+    "description": "Hint under the empty site permissions message"
+  },
+  "sitePermissionAllowed": "Allowed",
+  "@sitePermissionAllowed": {
+    "description": "State of a permission that is allowed for a site"
+  },
+  "sitePermissionBlocked": "Blocked",
+  "@sitePermissionBlocked": {
+    "description": "State of a permission that is blocked for a site"
+  },
+  "sitePermissionResetSite": "Reset permissions",
+  "@sitePermissionResetSite": {
+    "description": "Action that forgets all remembered permissions for a site"
+  },
+  "sitePermissionResetSiteConfirm": "Forget all permissions for {host}? The site will ask again next time.",
+  "@sitePermissionResetSiteConfirm": {
+    "description": "Confirmation text before resetting a site's permissions",
+    "placeholders": {
+      "host": {
+        "type": "String"
+      }
+    }
+  },
+  "reset": "Reset",
+  "@reset": {
+    "description": "Generic reset button text"
   }
 }
-
-
-
