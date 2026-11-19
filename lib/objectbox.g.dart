@@ -17,6 +17,7 @@ import 'package:objectbox_flutter_libs/objectbox_flutter_libs.dart';
 import 'features/browser/data/models/bookmark.dart';
 import 'features/browser/data/models/browser_history.dart';
 import 'features/browser/data/models/download_entity.dart';
+import 'features/browser/data/models/site_permission.dart';
 import 'features/browser/data/models/tab_entity.dart';
 
 export 'package:objectbox/objectbox.dart'; // so that callers only have to import this file
@@ -236,6 +237,47 @@ final _entities = <obx_int.ModelEntity>[
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
   ),
+  obx_int.ModelEntity(
+    id: const obx_int.IdUid(5, 5745298136678270623),
+    name: 'SitePermission',
+    lastPropertyId: const obx_int.IdUid(5, 3970169170679085517),
+    flags: 0,
+    properties: <obx_int.ModelProperty>[
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(1, 2641796393594962009),
+        name: 'id',
+        type: 6,
+        flags: 1,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(2, 7909819492905374642),
+        name: 'origin',
+        type: 9,
+        flags: 2048,
+        indexId: const obx_int.IdUid(1, 3297705805104627783),
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(3, 625782253246593031),
+        name: 'kind',
+        type: 9,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(4, 307728243795711317),
+        name: 'allowed',
+        type: 1,
+        flags: 0,
+      ),
+      obx_int.ModelProperty(
+        id: const obx_int.IdUid(5, 3970169170679085517),
+        name: 'updatedAt',
+        type: 10,
+        flags: 0,
+      ),
+    ],
+    relations: <obx_int.ModelRelation>[],
+    backlinks: <obx_int.ModelBacklink>[],
+  ),
 ];
 
 /// Shortcut for [obx.Store.new] that passes [getObjectBoxModel] and for Flutter
@@ -281,8 +323,8 @@ obx_int.ModelDefinition getObjectBoxModel() {
     // Typically, this is done with `dart run build_runner build`.
     generatorVersion: obx_int.GeneratorVersion.v2025_12_16,
     entities: _entities,
-    lastEntityId: const obx_int.IdUid(4, 7425800535876162715),
-    lastIndexId: const obx_int.IdUid(0, 0),
+    lastEntityId: const obx_int.IdUid(5, 5745298136678270623),
+    lastIndexId: const obx_int.IdUid(1, 3297705805104627783),
     lastRelationId: const obx_int.IdUid(0, 0),
     lastSequenceId: const obx_int.IdUid(0, 0),
     retiredEntityUids: const [],
@@ -602,6 +644,61 @@ obx_int.ModelDefinition getObjectBoxModel() {
         return object;
       },
     ),
+    SitePermission: obx_int.EntityDefinition<SitePermission>(
+      model: _entities[4],
+      toOneRelations: (SitePermission object) => [],
+      toManyRelations: (SitePermission object) => {},
+      getId: (SitePermission object) => object.id,
+      setId: (SitePermission object, int id) {
+        object.id = id;
+      },
+      objectToFB: (SitePermission object, fb.Builder fbb) {
+        final originOffset = fbb.writeString(object.origin);
+        final kindOffset = fbb.writeString(object.kind);
+        fbb.startTable(6);
+        fbb.addInt64(0, object.id);
+        fbb.addOffset(1, originOffset);
+        fbb.addOffset(2, kindOffset);
+        fbb.addBool(3, object.allowed);
+        fbb.addInt64(4, object.updatedAt.millisecondsSinceEpoch);
+        fbb.finish(fbb.endTable());
+        return object.id;
+      },
+      objectFromFB: (obx.Store store, ByteData fbData) {
+        final buffer = fb.BufferContext(fbData);
+        final rootOffset = buffer.derefObject(0);
+        final idParam = const fb.Int64Reader().vTableGet(
+          buffer,
+          rootOffset,
+          4,
+          0,
+        );
+        final originParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 6, '');
+        final kindParam = const fb.StringReader(
+          asciiOptimization: true,
+        ).vTableGet(buffer, rootOffset, 8, '');
+        final allowedParam = const fb.BoolReader().vTableGet(
+          buffer,
+          rootOffset,
+          10,
+          false,
+        );
+        final updatedAtParam = DateTime.fromMillisecondsSinceEpoch(
+          const fb.Int64Reader().vTableGet(buffer, rootOffset, 12, 0),
+        );
+        final object = SitePermission(
+          id: idParam,
+          origin: originParam,
+          kind: kindParam,
+          allowed: allowedParam,
+          updatedAt: updatedAtParam,
+        );
+
+        return object;
+      },
+    ),
   };
 
   return obx_int.ModelDefinition(model, bindings);
@@ -761,5 +858,33 @@ class DownloadEntity_ {
   /// See [DownloadEntity.errorMessage].
   static final errorMessage = obx.QueryStringProperty<DownloadEntity>(
     _entities[3].properties[10],
+  );
+}
+
+/// [SitePermission] entity fields to define ObjectBox queries.
+class SitePermission_ {
+  /// See [SitePermission.id].
+  static final id = obx.QueryIntegerProperty<SitePermission>(
+    _entities[4].properties[0],
+  );
+
+  /// See [SitePermission.origin].
+  static final origin = obx.QueryStringProperty<SitePermission>(
+    _entities[4].properties[1],
+  );
+
+  /// See [SitePermission.kind].
+  static final kind = obx.QueryStringProperty<SitePermission>(
+    _entities[4].properties[2],
+  );
+
+  /// See [SitePermission.allowed].
+  static final allowed = obx.QueryBooleanProperty<SitePermission>(
+    _entities[4].properties[3],
+  );
+
+  /// See [SitePermission.updatedAt].
+  static final updatedAt = obx.QueryDateProperty<SitePermission>(
+    _entities[4].properties[4],
   );
 }
