@@ -43,6 +43,26 @@ class InMemorySitePermissionRepository implements SitePermissionRepository {
   ];
 }
 
+class ChromiumWrite {
+  final String origin;
+  final StoredPermission permission;
+  final StoredPermissionValue value;
+  ChromiumWrite(this.origin, this.permission, this.value);
+
+  @override
+  bool operator ==(Object other) =>
+      other is ChromiumWrite &&
+      other.origin == origin &&
+      other.permission == permission &&
+      other.value == value;
+
+  @override
+  int get hashCode => Object.hash(origin, permission, value);
+
+  @override
+  String toString() => 'ChromiumWrite($origin, $permission, $value)';
+}
+
 class Answer {
   final WebviewPermissionRequest request;
   final bool allow;
@@ -80,6 +100,7 @@ void main() {
 
   late InMemorySitePermissionRepository repo;
   late List<Answer> answers;
+  late List<ChromiumWrite> chromiumWrites;
   late PermissionBloc bloc;
   late WebViewController tabA;
   late WebViewController tabB;
@@ -87,10 +108,14 @@ void main() {
   setUp(() {
     repo = InMemorySitePermissionRepository();
     answers = [];
+    chromiumWrites = [];
     bloc = PermissionBloc(
       repository: repo,
       respond: (request, allow, {promptResult}) async {
         answers.add(Answer(request, allow, promptResult));
+      },
+      writeChromium: (origin, permission, value) async {
+        chromiumWrites.add(ChromiumWrite(origin, permission, value));
       },
     );
     const channel = MethodChannel('test');
@@ -128,7 +153,15 @@ void main() {
       expect(c.hasUnsupported, isFalse);
     });
 
-    test('screen capture and notifications are unsupported', () {
+    test('maps the notifications bit', () {
+      final c = classifyPermissionRequest(
+        prompt(1, PromptPermission.notifications),
+      );
+      expect(c.kinds, [SitePermissionKind.notifications]);
+      expect(c.hasUnsupported, isFalse);
+    });
+
+    test('screen capture and sensors are unsupported', () {
       expect(
         classifyPermissionRequest(
           media(1, MediaPermission.desktopVideoCapture),
@@ -137,7 +170,7 @@ void main() {
       );
       expect(
         classifyPermissionRequest(
-          prompt(1, PromptPermission.notifications),
+          prompt(1, PromptPermission.sensors),
         ).hasUnsupported,
         isTrue,
       );
@@ -161,10 +194,26 @@ void main() {
   });
 
   test('unsupported request is denied without prompting', () async {
-    request(tabA, 'a', prompt(7, PromptPermission.notifications));
+    request(tabA, 'a', prompt(7, PromptPermission.sensors));
     await settle();
     expect(bloc.state.pending, isEmpty);
     expect(answers.single.allow, isFalse);
+  });
+
+  test('notification request is prompted and Allow grants it', () async {
+    request(tabA, 'a', prompt(8, PromptPermission.notifications));
+    await settle();
+    final pending = bloc.state.promptFor('a')!;
+    expect(pending.kinds, [SitePermissionKind.notifications]);
+
+    bloc.add(PermissionDecided(pending, allow: true));
+    await settle();
+    expect(answers.single.allow, isTrue);
+    expect(repo.decisionsFor('https://maps.example.com'), {
+      SitePermissionKind.notifications: true,
+    });
+    // Answering the prompt stores the decision in Chromium by itself.
+    expect(chromiumWrites, isEmpty);
   });
 
   test('Allow answers, remembers, and settles duplicates', () async {
@@ -305,5 +354,69 @@ void main() {
     bloc.add(const SitePermissionReset('https://a.com'));
     await settle();
     expect(bloc.state.sitePermissions, isEmpty);
+  });
+
+  group('Chromium stored decisions', () {
+    test('settings change overwrites Chromium\'s decision', () async {
+      bloc.add(
+        const SitePermissionChanged(
+          origin: 'https://a.com',
+          kind: SitePermissionKind.notifications,
+          allowed: true,
+        ),
+      );
+      await settle();
+      expect(chromiumWrites, [
+        ChromiumWrite(
+          'https://a.com',
+          StoredPermission.notifications,
+          StoredPermissionValue.allow,
+        ),
+      ]);
+    });
+
+    test('reset of one kind makes Chromium ask again', () async {
+      bloc.add(
+        const SitePermissionReset(
+          'https://a.com',
+          SitePermissionKind.location,
+        ),
+      );
+      await settle();
+      expect(chromiumWrites, [
+        ChromiumWrite(
+          'https://a.com',
+          StoredPermission.geolocation,
+          StoredPermissionValue.ask,
+        ),
+      ]);
+    });
+
+    test('site reset clears every kind Chromium stores', () async {
+      bloc.add(const SitePermissionReset('https://a.com'));
+      await settle();
+      expect(chromiumWrites.map((w) => w.permission), [
+        StoredPermission.geolocation,
+        StoredPermission.notifications,
+        StoredPermission.clipboard,
+        StoredPermission.midi,
+      ]);
+      expect(
+        chromiumWrites.every((w) => w.value == StoredPermissionValue.ask),
+        isTrue,
+      );
+    });
+
+    test('camera has no Chromium decision to write', () async {
+      bloc.add(
+        const SitePermissionChanged(
+          origin: 'https://a.com',
+          kind: SitePermissionKind.camera,
+          allowed: false,
+        ),
+      );
+      await settle();
+      expect(chromiumWrites, isEmpty);
+    });
   });
 }

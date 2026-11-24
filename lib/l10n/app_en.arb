@@ -577,6 +577,10 @@
   "@permissionLocationRequest": {
     "description": "Prompt line for a location request"
   },
+  "permissionNotificationsRequest": "Show notifications",
+  "@permissionNotificationsRequest": {
+    "description": "Prompt line for a notifications request"
+  },
   "permissionClipboardRequest": "See text and images copied to the clipboard",
   "@permissionClipboardRequest": {
     "description": "Prompt line for a clipboard request"
@@ -612,6 +616,10 @@
   "permissionLocation": "Location",
   "@permissionLocation": {
     "description": "Short name of the location permission"
+  },
+  "permissionNotifications": "Notifications",
+  "@permissionNotifications": {
+    "description": "Short name of the notifications permission"
   },
   "permissionClipboard": "Clipboard",
   "@permissionClipboard": {

@@ -17,22 +17,35 @@ typedef PermissionResponder =
       PermissionPromptResult? promptResult,
     });
 
-/// Handles camera, microphone, location, clipboard and MIDI requests from
-/// pages: answers from remembered per-site decisions when it can, and
-/// otherwise queues a prompt for the requesting tab.
+/// Overwrites the decision Chromium stored for an origin.
+typedef ChromiumPermissionWriter =
+    Future<void> Function(
+      String origin,
+      StoredPermission permission,
+      StoredPermissionValue value,
+    );
+
+/// Handles camera, microphone, location, notification, clipboard and MIDI
+/// requests from pages: answers from remembered per-site decisions when it
+/// can, and otherwise queues a prompt for the requesting tab.
 ///
 /// Private tabs inherit remembered *blocks* but never remembered allows, and
 /// their own decisions live in memory until the last private tab closes.
 class PermissionBloc extends Bloc<PermissionEvent, PermissionState> {
   final SitePermissionRepository repository;
   final PermissionResponder _respond;
+  final ChromiumPermissionWriter _writeChromium;
 
   /// Private-session decisions: origin -> kind -> allowed.
   final Map<String, Map<SitePermissionKind, bool>> _privateDecisions = {};
 
-  PermissionBloc({required this.repository, PermissionResponder? respond})
-    : _respond = respond ?? WebviewManager().respondToPermissionRequest,
-      super(const PermissionState()) {
+  PermissionBloc({
+    required this.repository,
+    PermissionResponder? respond,
+    ChromiumPermissionWriter? writeChromium,
+  }) : _respond = respond ?? WebviewManager().respondToPermissionRequest,
+       _writeChromium = writeChromium ?? WebviewManager().setPermissionSetting,
+       super(const PermissionState()) {
     on<PermissionRequested>(_onRequested);
     on<PermissionDismissed>(_onDismissed);
     on<PermissionDecided>(_onDecided);
@@ -65,6 +78,27 @@ class PermissionBloc extends Bloc<PermissionEvent, PermissionState> {
     } catch (e, stackTrace) {
       AppLogger.e(
         'Unable to answer permission request $request',
+        error: e,
+        stack: stackTrace,
+      );
+    }
+  }
+
+  /// Chromium remembers accepted and denied prompts in its profile and then
+  /// stops asking, so a decision changed in site settings must reach it too,
+  /// or the old answer keeps applying.
+  Future<void> _syncChromium(
+    String origin,
+    SitePermissionKind kind,
+    StoredPermissionValue value,
+  ) async {
+    final setting = kind.chromiumSetting;
+    if (setting == null) return;
+    try {
+      await _writeChromium(origin, setting, value);
+    } catch (e, stackTrace) {
+      AppLogger.e(
+        'Unable to update Chromium permission $setting for $origin',
         error: e,
         stack: stackTrace,
       );
@@ -223,20 +257,30 @@ class PermissionBloc extends Bloc<PermissionEvent, PermissionState> {
     emit(state.copyWith(sitePermissions: repository.all()));
   }
 
-  void _onSitePermissionChanged(
+  Future<void> _onSitePermissionChanged(
     SitePermissionChanged event,
     Emitter<PermissionState> emit,
-  ) {
+  ) async {
     repository.save(event.origin, [event.kind], event.allowed);
     emit(state.copyWith(sitePermissions: repository.all()));
+    await _syncChromium(
+      event.origin,
+      event.kind,
+      event.allowed ? StoredPermissionValue.allow : StoredPermissionValue.block,
+    );
   }
 
-  void _onSitePermissionReset(
+  Future<void> _onSitePermissionReset(
     SitePermissionReset event,
     Emitter<PermissionState> emit,
-  ) {
+  ) async {
     repository.remove(event.origin, event.kind);
     emit(state.copyWith(sitePermissions: repository.all()));
+    // No kind resets the whole site.
+    final kinds = event.kind == null ? SitePermissionKind.values : [event.kind!];
+    for (final kind in kinds) {
+      await _syncChromium(event.origin, kind, StoredPermissionValue.ask);
+    }
   }
 
   void _removeWhere(

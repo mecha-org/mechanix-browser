@@ -7,6 +7,7 @@ extension SitePermissionKindLabels on SitePermissionKind {
     SitePermissionKind.camera => Icons.videocam_outlined,
     SitePermissionKind.microphone => Icons.mic_none_outlined,
     SitePermissionKind.location => Icons.location_on_outlined,
+    SitePermissionKind.notifications => Icons.notifications_none_outlined,
     SitePermissionKind.clipboard => Icons.content_paste_outlined,
     SitePermissionKind.midi => Icons.piano_outlined,
   };
@@ -16,6 +17,7 @@ extension SitePermissionKindLabels on SitePermissionKind {
     SitePermissionKind.camera => l10n.permissionCamera,
     SitePermissionKind.microphone => l10n.permissionMicrophone,
     SitePermissionKind.location => l10n.permissionLocation,
+    SitePermissionKind.notifications => l10n.permissionNotifications,
     SitePermissionKind.clipboard => l10n.permissionClipboard,
     SitePermissionKind.midi => l10n.permissionMidi,
   };
@@ -25,6 +27,7 @@ extension SitePermissionKindLabels on SitePermissionKind {
     SitePermissionKind.camera => l10n.permissionCameraRequest,
     SitePermissionKind.microphone => l10n.permissionMicrophoneRequest,
     SitePermissionKind.location => l10n.permissionLocationRequest,
+    SitePermissionKind.notifications => l10n.permissionNotificationsRequest,
     SitePermissionKind.clipboard => l10n.permissionClipboardRequest,
     SitePermissionKind.midi => l10n.permissionMidiRequest,
   };

@@ -414,6 +414,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get permissionLocationRequest => 'Know your location';
 
   @override
+  String get permissionNotificationsRequest => 'Show notifications';
+
+  @override
   String get permissionClipboardRequest => 'See text and images copied to the clipboard';
 
   @override
@@ -439,6 +442,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get permissionLocation => 'Location';
+
+  @override
+  String get permissionNotifications => 'Notifications';
 
   @override
   String get permissionClipboard => 'Clipboard';

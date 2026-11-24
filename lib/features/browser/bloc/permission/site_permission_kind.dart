@@ -1,7 +1,26 @@
 import 'package:webview_cef/webview_cef.dart';
 
 /// Permission kinds the user sees and can remember per site.
-enum SitePermissionKind { camera, microphone, location, clipboard, midi }
+enum SitePermissionKind {
+  camera,
+  microphone,
+  location,
+  notifications,
+  clipboard,
+  midi,
+}
+
+extension SitePermissionKindStore on SitePermissionKind {
+  /// The decision Chromium itself remembers for this kind, or null when it
+  /// keeps none (camera and microphone requests are asked every time).
+  StoredPermission? get chromiumSetting => switch (this) {
+    SitePermissionKind.location => StoredPermission.geolocation,
+    SitePermissionKind.notifications => StoredPermission.notifications,
+    SitePermissionKind.clipboard => StoredPermission.clipboard,
+    SitePermissionKind.midi => StoredPermission.midi,
+    SitePermissionKind.camera || SitePermissionKind.microphone => null,
+  };
+}
 
 /// Result of mapping a raw CEF request mask onto [SitePermissionKind]s.
 class ClassifiedPermissionRequest {
@@ -9,7 +28,7 @@ class ClassifiedPermissionRequest {
   final List<SitePermissionKind> kinds;
 
   /// True when the mask contains something this browser cannot back with a
-  /// working implementation (notifications, screen capture, sensors, ...).
+  /// working implementation (screen capture, sensors, ...).
   /// Such requests are denied without prompting.
   final bool hasUnsupported;
 
@@ -42,8 +61,9 @@ ClassifiedPermissionRequest classifyPermissionRequest(
     map(PromptPermission.geolocation, SitePermissionKind.location);
     map(PromptPermission.clipboard, SitePermissionKind.clipboard);
     map(PromptPermission.midiSysex, SitePermissionKind.midi);
-    // Notifications stay in |remaining|: CEF's Alloy runtime has no
-    // notification service, so granting would silently do nothing.
+    // Granted notifications are shown by Chromium itself through the
+    // session's org.freedesktop.Notifications service.
+    map(PromptPermission.notifications, SitePermissionKind.notifications);
   }
 
   final ordered = SitePermissionKind.values.where(kinds.contains).toList();

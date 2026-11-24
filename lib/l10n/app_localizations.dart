@@ -843,6 +843,12 @@ abstract class AppLocalizations {
   /// **'Know your location'**
   String get permissionLocationRequest;
 
+  /// Prompt line for a notifications request
+  ///
+  /// In en, this message translates to:
+  /// **'Show notifications'**
+  String get permissionNotificationsRequest;
+
   /// Prompt line for a clipboard request
   ///
   /// In en, this message translates to:
@@ -896,6 +902,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Location'**
   String get permissionLocation;
+
+  /// Short name of the notifications permission
+  ///
+  /// In en, this message translates to:
+  /// **'Notifications'**
+  String get permissionNotifications;
 
   /// Short name of the clipboard permission
   ///
