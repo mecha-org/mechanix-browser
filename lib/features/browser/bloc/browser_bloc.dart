@@ -323,7 +323,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
             tabEntity.url.isEmpty ? AppConstants.homepageUrl : tabEntity.url,
             id: tabEntity.tabId,
             load: tabEntity.isActive,
-          ).copyWith(screenshot: tabEntity.screenshot);
+          );
 
           tabs.add(tab);
           if (tabEntity.isActive) {
@@ -492,7 +492,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       }
       final oldTab = state.activeTab;
       if (oldTab != null) {
-        await _captureTabScreenshot(oldTab, emit);
         if (oldTab.controller.value) {
           await oldTab.controller.setClientFocus(false);
           await oldTab.controller.wasHidden(true);
@@ -692,7 +691,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       if (state.mode == targetMode && activeIndex == index) return;
 
       if (oldTab != null) {
-        await _captureTabScreenshot(oldTab, emit);
         if (oldTab.controller.value) {
           await oldTab.controller.setClientFocus(false);
           await oldTab.controller.wasHidden(true);
@@ -833,50 +831,11 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
           url: tab.isHomePage ? '' : tab.currentUrl,
           title: tab.title,
           isActive: i == state.activeNormalTabIndex,
-          screenshot: tab.screenshot,
         ),
       );
     }
     _tabRepository!.deleteAllTabs();
     _tabRepository!.saveAllTabs(tabsToSave);
-  }
-
-  Future<void> _captureTabScreenshot(
-    BrowserTab? tab,
-    Emitter<BrowserState> emit,
-  ) async {
-    if (tab == null) return;
-    if (!tab.controller.value) return;
-    if (tab.isHomePage || tab.currentUrl.isEmpty) return;
-    if (_tabRepository == null) return;
-
-    try {
-      final screenshotBytes = await tab.controller.captureScreenshot();
-      if (screenshotBytes != null && screenshotBytes.isNotEmpty) {
-        final isPrivate = tab.isPrivate;
-        final tabsList = isPrivate ? state.privateTabs : state.normalTabs;
-        final index = tabsList.indexWhere((t) => t.id == tab.id);
-
-        if (index != -1) {
-          final updatedTab = tab.copyWith(screenshot: screenshotBytes);
-          final updatedTabs = List<BrowserTab>.from(tabsList);
-          updatedTabs[index] = updatedTab;
-
-          if (isPrivate) {
-            emit(state.copyWith(privateTabs: updatedTabs));
-          } else {
-            emit(state.copyWith(normalTabs: updatedTabs));
-            _persistTabs();
-          }
-        }
-      }
-    } catch (e, stackTrace) {
-      AppLogger.e(
-        "Error capturing tab screenshot",
-        error: e,
-        stack: stackTrace,
-      );
-    }
   }
 
   /// Handler to load a new URL in the active tab.
@@ -1310,8 +1269,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     if (state.mode == event.mode) return;
 
     final oldTab = state.activeTab;
-    await _captureTabScreenshot(oldTab, emit);
-
     emit(state.copyWith(mode: event.mode));
 
     final newTab = state.activeTab;
@@ -1346,7 +1303,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     BrowserTabSwitcherOpened event,
     Emitter<BrowserState> emit,
   ) {
-    // _captureTabScreenshot(state.activeTab, emit);
     emit(state.copyWith(tabSwitcherMode: state.mode));
   }
 

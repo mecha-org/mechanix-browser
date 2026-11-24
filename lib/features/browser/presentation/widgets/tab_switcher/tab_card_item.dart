@@ -50,27 +50,19 @@ class TabCardItem extends StatelessWidget {
         clipBehavior: Clip.antiAlias,
         child: Stack(
           children: [
-            // WebView preview or Screenshot
+            // Live preview of the active tab; a placeholder for the others.
             Positioned.fill(
               bottom: 48,
               child: IgnorePointer(
                 child: isActive
                     ? StaticWebView(tab.controller)
-                    : tab.screenshot != null
-                        ? Image.memory(
-                            tab.screenshot!,
-                            fit: BoxFit.cover,
-                            cacheWidth: 300,
-                            errorBuilder: (context, error, stackTrace) =>
-                                Center(
-                              child: Icon(Icons.public,
-                                  size: 48, color: colors.dragHandle),
-                            ),
-                          )
-                        : Center(
-                            child: Icon(Icons.public,
-                                size: 48, color: colors.dragHandle),
-                          ),
+                    : Center(
+                        child: Icon(
+                          Icons.public,
+                          size: 48,
+                          color: colors.dragHandle,
+                        ),
+                      ),
               ),
             ),
             Positioned(

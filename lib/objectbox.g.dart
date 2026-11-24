@@ -150,12 +150,6 @@ final _entities = <obx_int.ModelEntity>[
         type: 1,
         flags: 0,
       ),
-      obx_int.ModelProperty(
-        id: const obx_int.IdUid(8, 8193946014709493973),
-        name: 'screenshot',
-        type: 23,
-        flags: 0,
-      ),
     ],
     relations: <obx_int.ModelRelation>[],
     backlinks: <obx_int.ModelBacklink>[],
@@ -293,6 +287,7 @@ obx_int.ModelDefinition getObjectBoxModel() {
       7868234118940166174,
       2557721577696236183,
       8987975594118788200,
+      8193946014709493973,
     ],
     retiredRelationUids: const [],
     modelVersion: 5,
@@ -437,9 +432,6 @@ obx_int.ModelDefinition getObjectBoxModel() {
         final tabIdOffset = fbb.writeString(object.tabId);
         final urlOffset = fbb.writeString(object.url);
         final titleOffset = fbb.writeString(object.title);
-        final screenshotOffset = object.screenshot == null
-            ? null
-            : fbb.writeListInt8(object.screenshot!);
         fbb.startTable(9);
         fbb.addInt64(0, object.id);
         fbb.addOffset(1, tabIdOffset);
@@ -447,7 +439,6 @@ obx_int.ModelDefinition getObjectBoxModel() {
         fbb.addOffset(3, urlOffset);
         fbb.addOffset(4, titleOffset);
         fbb.addBool(5, object.isActive);
-        fbb.addOffset(7, screenshotOffset);
         fbb.finish(fbb.endTable());
         return object.id;
       },
@@ -481,11 +472,6 @@ obx_int.ModelDefinition getObjectBoxModel() {
           14,
           false,
         );
-        final screenshotParam =
-            const fb.Uint8ListReader(
-                  lazy: false,
-                ).vTableGetNullable(buffer, rootOffset, 18)
-                as Uint8List?;
         final object = TabEntity(
           id: idParam,
           tabId: tabIdParam,
@@ -493,7 +479,6 @@ obx_int.ModelDefinition getObjectBoxModel() {
           url: urlParam,
           title: titleParam,
           isActive: isActiveParam,
-          screenshot: screenshotParam,
         );
 
         return object;
@@ -698,11 +683,6 @@ class TabEntity_ {
   /// See [TabEntity.isActive].
   static final isActive = obx.QueryBooleanProperty<TabEntity>(
     _entities[2].properties[5],
-  );
-
-  /// See [TabEntity.screenshot].
-  static final screenshot = obx.QueryByteVectorProperty<TabEntity>(
-    _entities[2].properties[6],
   );
 }
 
