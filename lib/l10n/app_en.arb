@@ -601,7 +601,7 @@
   "@permissionNotNow": {
     "description": "Tooltip of the button that closes the permission prompt without deciding"
   },
-  "permissionPromptPrivateNote": "In private mode, this choice is forgotten when you close all private tabs.",
+  "permissionPromptPrivateNote": "In private mode, this choice is forgotten when you close this tab.",
   "@permissionPromptPrivateNote": {
     "description": "Note shown on the permission prompt in private tabs"
   },
@@ -628,39 +628,6 @@
   "permissionMidi": "MIDI devices",
   "@permissionMidi": {
     "description": "Short name of the MIDI permission"
-  },
-  "sitePermissions": "Site permissions",
-  "@sitePermissions": {
-    "description": "Title of the site permissions screen"
-  },
-  "sitePermissionsEmpty": "No site permissions yet",
-  "@sitePermissionsEmpty": {
-    "description": "Shown on the site permissions screen when nothing is remembered"
-  },
-  "sitePermissionsEmptyHint": "When you allow or block a site's request for your camera, microphone or location, it appears here.",
-  "@sitePermissionsEmptyHint": {
-    "description": "Hint under the empty site permissions message"
-  },
-  "sitePermissionAllowed": "Allowed",
-  "@sitePermissionAllowed": {
-    "description": "State of a permission that is allowed for a site"
-  },
-  "sitePermissionBlocked": "Blocked",
-  "@sitePermissionBlocked": {
-    "description": "State of a permission that is blocked for a site"
-  },
-  "sitePermissionResetSite": "Reset permissions",
-  "@sitePermissionResetSite": {
-    "description": "Action that forgets all remembered permissions for a site"
-  },
-  "sitePermissionResetSiteConfirm": "Forget all permissions for {host}? The site will ask again next time.",
-  "@sitePermissionResetSiteConfirm": {
-    "description": "Confirmation text before resetting a site's permissions",
-    "placeholders": {
-      "host": {
-        "type": "String"
-      }
-    }
   },
   "reset": "Reset",
   "@reset": {

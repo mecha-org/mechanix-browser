@@ -432,7 +432,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get permissionNotNow => 'Not now';
 
   @override
-  String get permissionPromptPrivateNote => 'In private mode, this choice is forgotten when you close all private tabs.';
+  String get permissionPromptPrivateNote => 'In private mode, this choice is forgotten when you close this tab.';
 
   @override
   String get permissionCamera => 'Camera';
@@ -452,28 +452,12 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get permissionMidi => 'MIDI devices';
 
-  @override
-  String get sitePermissions => 'Site permissions';
 
-  @override
-  String get sitePermissionsEmpty => 'No site permissions yet';
 
-  @override
-  String get sitePermissionsEmptyHint => 'When you allow or block a site\'s request for your camera, microphone or location, it appears here.';
 
-  @override
-  String get sitePermissionAllowed => 'Allowed';
 
-  @override
-  String get sitePermissionBlocked => 'Blocked';
 
-  @override
-  String get sitePermissionResetSite => 'Reset permissions';
 
-  @override
-  String sitePermissionResetSiteConfirm(String host) {
-    return 'Forget all permissions for $host? The site will ask again next time.';
-  }
 
   @override
   String get reset => 'Reset';

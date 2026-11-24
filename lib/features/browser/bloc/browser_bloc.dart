@@ -1473,9 +1473,9 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     }
   }
 
-  /// Keeps [permissionBloc] in step with tab lifetimes: drops prompts of
-  /// closed tabs and forgets private-session decisions once the last private
-  /// tab is gone. Done here so every path that removes tabs is covered.
+  /// Keeps [permissionBloc] in step with tab lifetimes: drops prompts and
+  /// per-visit decisions of closed tabs. Done here so every path that removes
+  /// tabs is covered.
   @override
   void onChange(Change<BrowserState> change) {
     super.onChange(change);
@@ -1495,9 +1495,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       if (!remaining.contains(t.controller)) {
         permissions.add(PermissionControllerDisposed(t.controller));
       }
-    }
-    if (before.privateTabs.isNotEmpty && after.privateTabs.isEmpty) {
-      permissions.add(const PermissionPrivateSessionEnded());
     }
   }
 

@@ -2,8 +2,6 @@ import 'package:equatable/equatable.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:mechanix_browser/core/utils/app_logger.dart';
 import 'package:mechanix_browser/features/browser/bloc/permission/site_permission_kind.dart';
-import 'package:mechanix_browser/features/browser/data/models/site_permission.dart';
-import 'package:mechanix_browser/features/browser/data/repositories/site_permission_repository.dart';
 import 'package:webview_cef/webview_cef.dart';
 
 part 'permission_event.dart';
@@ -17,34 +15,36 @@ typedef PermissionResponder =
       PermissionPromptResult? promptResult,
     });
 
-/// Overwrites the decision Chromium stored for an origin.
-typedef ChromiumPermissionWriter =
-    Future<void> Function(
+/// Reads the decision Chromium stored for an origin in the persistent profile.
+typedef ChromiumPermissionReader =
+    Future<StoredPermissionValue?> Function(
       String origin,
       StoredPermission permission,
-      StoredPermissionValue value,
     );
 
 /// Handles camera, microphone, location, notification, clipboard and MIDI
-/// requests from pages: answers from remembered per-site decisions when it
-/// can, and otherwise queues a prompt for the requesting tab.
+/// requests from pages by queueing a prompt for the requesting tab.
 ///
-/// Private tabs inherit remembered *blocks* but never remembered allows, and
-/// their own decisions live in memory until the last private tab closes.
+/// Nothing is stored by the app:
+/// - Chromium remembers prompt permissions (notifications, location, ...) in
+///   its profile and only asks again when it has no decision.
+/// - Camera and microphone decisions last while the tab stays on the site,
+///   so a page asking several times (preview, join, switch device) is asked
+///   once. A new visit asks again.
+/// - Private tabs have their own empty profile, so they inherit blocks from
+///   the normal profile here, but never allows.
 class PermissionBloc extends Bloc<PermissionEvent, PermissionState> {
-  final SitePermissionRepository repository;
   final PermissionResponder _respond;
-  final ChromiumPermissionWriter _writeChromium;
+  final ChromiumPermissionReader _readChromium;
 
-  /// Private-session decisions: origin -> kind -> allowed.
-  final Map<String, Map<SitePermissionKind, bool>> _privateDecisions = {};
+  /// Decisions made in each tab for the site it is on, keyed by tab id.
+  final Map<String, _TabDecisions> _tabDecisions = {};
 
   PermissionBloc({
-    required this.repository,
     PermissionResponder? respond,
-    ChromiumPermissionWriter? writeChromium,
+    ChromiumPermissionReader? readChromium,
   }) : _respond = respond ?? WebviewManager().respondToPermissionRequest,
-       _writeChromium = writeChromium ?? WebviewManager().setPermissionSetting,
+       _readChromium = readChromium ?? WebviewManager().getPermissionSetting,
        super(const PermissionState()) {
     on<PermissionRequested>(_onRequested);
     on<PermissionDismissed>(_onDismissed);
@@ -52,20 +52,35 @@ class PermissionBloc extends Bloc<PermissionEvent, PermissionState> {
     on<PermissionPromptClosed>(_onPromptClosed);
     on<PermissionTabNavigated>(_onTabNavigated);
     on<PermissionControllerDisposed>(_onControllerDisposed);
-    on<PermissionPrivateSessionEnded>(_onPrivateSessionEnded);
-    on<SitePermissionsLoadRequested>(_onLoadSitePermissions);
-    on<SitePermissionChanged>(_onSitePermissionChanged);
-    on<SitePermissionReset>(_onSitePermissionReset);
   }
 
-  Map<SitePermissionKind, bool> _rememberedFor(String origin, bool isPrivate) {
-    final persisted = repository.decisionsFor(origin);
-    if (!isPrivate) return persisted;
-    return {
-      for (final e in persisted.entries)
-        if (!e.value) e.key: false,
-      ...?_privateDecisions[origin],
-    };
+  Map<SitePermissionKind, bool> _decisionsFor(String tabId, String origin) {
+    final tab = _tabDecisions[tabId];
+    return tab != null && tab.origin == origin ? tab.decisions : const {};
+  }
+
+  /// True when the normal profile blocks any of [kinds] for [origin].
+  Future<bool> _blockedInNormalProfile(
+    String origin,
+    List<SitePermissionKind> kinds,
+  ) async {
+    for (final kind in kinds) {
+      final setting = kind.chromiumSetting;
+      if (setting == null) continue;
+      try {
+        if (await _readChromium(origin, setting) ==
+            StoredPermissionValue.block) {
+          return true;
+        }
+      } catch (e, stackTrace) {
+        AppLogger.e(
+          'Unable to read Chromium permission $setting for $origin',
+          error: e,
+          stack: stackTrace,
+        );
+      }
+    }
+    return false;
   }
 
   Future<void> _answer(
@@ -78,27 +93,6 @@ class PermissionBloc extends Bloc<PermissionEvent, PermissionState> {
     } catch (e, stackTrace) {
       AppLogger.e(
         'Unable to answer permission request $request',
-        error: e,
-        stack: stackTrace,
-      );
-    }
-  }
-
-  /// Chromium remembers accepted and denied prompts in its profile and then
-  /// stops asking, so a decision changed in site settings must reach it too,
-  /// or the old answer keeps applying.
-  Future<void> _syncChromium(
-    String origin,
-    SitePermissionKind kind,
-    StoredPermissionValue value,
-  ) async {
-    final setting = kind.chromiumSetting;
-    if (setting == null) return;
-    try {
-      await _writeChromium(origin, setting, value);
-    } catch (e, stackTrace) {
-      AppLogger.e(
-        'Unable to update Chromium permission $setting for $origin',
         error: e,
         stack: stackTrace,
       );
@@ -123,13 +117,20 @@ class PermissionBloc extends Bloc<PermissionEvent, PermissionState> {
 
     final decision = resolveFromRemembered(
       classified.kinds,
-      _rememberedFor(origin, event.isPrivate),
+      _decisionsFor(event.tabId, origin),
     );
     if (decision != null) {
       AppLogger.i(
-        '[Permission] ${decision ? 'Allowing' : 'Blocking'} $origin ${classified.kinds.map((k) => k.name)} (remembered)',
+        '[Permission] ${decision ? 'Allowing' : 'Blocking'} $origin ${classified.kinds.map((k) => k.name)} (this visit)',
       );
       await _answer(request, decision);
+      return;
+    }
+
+    if (event.isPrivate &&
+        await _blockedInNormalProfile(origin, classified.kinds)) {
+      AppLogger.i('[Permission] Blocking $origin in private tab (inherited)');
+      await _answer(request, false);
       return;
     }
 
@@ -167,27 +168,30 @@ class PermissionBloc extends Bloc<PermissionEvent, PermissionState> {
     final pending = event.pending;
     if (!state.pending.contains(pending)) return;
 
-    if (pending.isPrivate) {
-      final forOrigin = _privateDecisions.putIfAbsent(pending.origin, () => {});
-      for (final kind in pending.kinds) {
-        forOrigin[kind] = event.allow;
-      }
-    } else {
-      repository.save(pending.origin, pending.kinds, event.allow);
+    var tab = _tabDecisions[pending.tabId];
+    if (tab == null || tab.origin != pending.origin) {
+      tab = _tabDecisions[pending.tabId] = _TabDecisions(
+        controller: pending.controller,
+        origin: pending.origin,
+      );
+    }
+    final decisions = tab.decisions;
+    for (final kind in pending.kinds) {
+      decisions[kind] = event.allow;
     }
 
     _removeWhere(emit, (p) => p == pending);
     await _answer(pending.request, event.allow);
 
-    // Other requests that the new decision now settles (duplicates, other
-    // tabs on the same site) are answered without prompting again.
+    // Other requests the decision now settles: duplicates in the same tab,
+    // and prompt permissions from other normal tabs on the same site (they
+    // share the profile Chromium just stored the answer in).
     final settled = <PendingPermission, bool>{};
     for (final other in state.pending) {
       if (other.origin != pending.origin) continue;
-      final decision = resolveFromRemembered(
-        other.kinds,
-        _rememberedFor(other.origin, other.isPrivate),
-      );
+      final decision = other.tabId == pending.tabId
+          ? resolveFromRemembered(other.kinds, decisions)
+          : _sharedDecision(pending, other, event.allow);
       if (decision != null) settled[other] = decision;
     }
     if (settled.isNotEmpty) {
@@ -196,8 +200,19 @@ class PermissionBloc extends Bloc<PermissionEvent, PermissionState> {
         await _answer(entry.key.request, entry.value);
       }
     }
+  }
 
-    if (!pending.isPrivate) add(const SitePermissionsLoadRequested());
+  /// The answer [decided] gives to [other] in another tab, if it settles it.
+  bool? _sharedDecision(
+    PendingPermission decided,
+    PendingPermission other,
+    bool allow,
+  ) {
+    if (decided.isPrivate || other.isPrivate) return null;
+    final storedByChromium = other.kinds.every(
+      (k) => k.chromiumSetting != null && decided.kinds.contains(k),
+    );
+    return storedByChromium ? allow : null;
   }
 
   Future<void> _onPromptClosed(
@@ -218,6 +233,9 @@ class PermissionBloc extends Bloc<PermissionEvent, PermissionState> {
     Emitter<PermissionState> emit,
   ) async {
     final newOrigin = normalizeOrigin(event.url);
+    if (_tabDecisions[event.tabId]?.origin != newOrigin) {
+      _tabDecisions.remove(event.tabId);
+    }
     final stale = state.pending
         .where((p) => p.tabId == event.tabId && p.origin != newOrigin)
         .toList();
@@ -238,49 +256,9 @@ class PermissionBloc extends Bloc<PermissionEvent, PermissionState> {
     PermissionControllerDisposed event,
     Emitter<PermissionState> emit,
   ) {
+    _tabDecisions.removeWhere((_, t) => t.controller == event.controller);
     // Closing the browser cancels its requests natively.
     _removeWhere(emit, (p) => p.controller == event.controller);
-  }
-
-  Future<void> _onPrivateSessionEnded(
-    PermissionPrivateSessionEnded event,
-    Emitter<PermissionState> emit,
-  ) async {
-    _privateDecisions.clear();
-    _removeWhere(emit, (p) => p.isPrivate);
-  }
-
-  void _onLoadSitePermissions(
-    SitePermissionsLoadRequested event,
-    Emitter<PermissionState> emit,
-  ) {
-    emit(state.copyWith(sitePermissions: repository.all()));
-  }
-
-  Future<void> _onSitePermissionChanged(
-    SitePermissionChanged event,
-    Emitter<PermissionState> emit,
-  ) async {
-    repository.save(event.origin, [event.kind], event.allowed);
-    emit(state.copyWith(sitePermissions: repository.all()));
-    await _syncChromium(
-      event.origin,
-      event.kind,
-      event.allowed ? StoredPermissionValue.allow : StoredPermissionValue.block,
-    );
-  }
-
-  Future<void> _onSitePermissionReset(
-    SitePermissionReset event,
-    Emitter<PermissionState> emit,
-  ) async {
-    repository.remove(event.origin, event.kind);
-    emit(state.copyWith(sitePermissions: repository.all()));
-    // No kind resets the whole site.
-    final kinds = event.kind == null ? SitePermissionKind.values : [event.kind!];
-    for (final kind in kinds) {
-      await _syncChromium(event.origin, kind, StoredPermissionValue.ask);
-    }
   }
 
   void _removeWhere(
@@ -292,4 +270,13 @@ class PermissionBloc extends Bloc<PermissionEvent, PermissionState> {
       emit(state.copyWith(pending: remaining));
     }
   }
+}
+
+/// What the user decided in one tab for the site it is currently on.
+class _TabDecisions {
+  final WebViewController controller;
+  final String origin;
+  final Map<SitePermissionKind, bool> decisions = {};
+
+  _TabDecisions({required this.controller, required this.origin});
 }

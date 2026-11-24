@@ -11,7 +11,6 @@ import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/download/download_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/history/history_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/permission/permission_bloc.dart';
-import 'package:mechanix_browser/features/browser/data/repositories/site_permission_repository_impl.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/history_repository.dart';
 import 'package:mechanix_browser/features/browser/data/repositories/history_repository_impl.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
@@ -53,7 +52,7 @@ class _MyAppState extends State<MyApp> {
       repository: DownloadRepositoryImpl(),
     )..add(const DownloadInitializeRequested());
 
-    _permissionBloc = PermissionBloc(repository: SitePermissionRepositoryImpl());
+    _permissionBloc = PermissionBloc();
 
     _browserBloc = BrowserBloc(
       downloadBloc: _downloadBloc,

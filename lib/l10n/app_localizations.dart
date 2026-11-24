@@ -882,7 +882,7 @@ abstract class AppLocalizations {
   /// Note shown on the permission prompt in private tabs
   ///
   /// In en, this message translates to:
-  /// **'In private mode, this choice is forgotten when you close all private tabs.'**
+  /// **'In private mode, this choice is forgotten when you close this tab.'**
   String get permissionPromptPrivateNote;
 
   /// Short name of the camera permission
@@ -921,47 +921,12 @@ abstract class AppLocalizations {
   /// **'MIDI devices'**
   String get permissionMidi;
 
-  /// Title of the site permissions screen
-  ///
-  /// In en, this message translates to:
-  /// **'Site permissions'**
-  String get sitePermissions;
 
-  /// Shown on the site permissions screen when nothing is remembered
-  ///
-  /// In en, this message translates to:
-  /// **'No site permissions yet'**
-  String get sitePermissionsEmpty;
 
-  /// Hint under the empty site permissions message
-  ///
-  /// In en, this message translates to:
-  /// **'When you allow or block a site's request for your camera, microphone or location, it appears here.'**
-  String get sitePermissionsEmptyHint;
 
-  /// State of a permission that is allowed for a site
-  ///
-  /// In en, this message translates to:
-  /// **'Allowed'**
-  String get sitePermissionAllowed;
 
-  /// State of a permission that is blocked for a site
-  ///
-  /// In en, this message translates to:
-  /// **'Blocked'**
-  String get sitePermissionBlocked;
 
-  /// Action that forgets all remembered permissions for a site
-  ///
-  /// In en, this message translates to:
-  /// **'Reset permissions'**
-  String get sitePermissionResetSite;
 
-  /// Confirmation text before resetting a site's permissions
-  ///
-  /// In en, this message translates to:
-  /// **'Forget all permissions for {host}? The site will ask again next time.'**
-  String sitePermissionResetSiteConfirm(String host);
 
   /// Generic reset button text
   ///

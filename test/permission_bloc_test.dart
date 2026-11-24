@@ -2,66 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mechanix_browser/features/browser/bloc/permission/permission_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/permission/site_permission_kind.dart';
-import 'package:mechanix_browser/features/browser/data/models/site_permission.dart';
-import 'package:mechanix_browser/features/browser/data/repositories/site_permission_repository.dart';
 import 'package:webview_cef/webview_cef.dart';
-
-class InMemorySitePermissionRepository implements SitePermissionRepository {
-  final Map<String, Map<SitePermissionKind, bool>> data = {};
-
-  @override
-  Map<SitePermissionKind, bool> decisionsFor(String origin) =>
-      Map.of(data[origin] ?? const {});
-
-  @override
-  void save(String origin, Iterable<SitePermissionKind> kinds, bool allowed) {
-    final forOrigin = data.putIfAbsent(origin, () => {});
-    for (final k in kinds) {
-      forOrigin[k] = allowed;
-    }
-  }
-
-  @override
-  void remove(String origin, [SitePermissionKind? kind]) {
-    if (kind == null) {
-      data.remove(origin);
-    } else {
-      data[origin]?.remove(kind);
-    }
-  }
-
-  @override
-  List<SitePermission> all() => [
-    for (final o in data.entries)
-      for (final k in o.value.entries)
-        SitePermission(
-          origin: o.key,
-          kind: k.key.name,
-          allowed: k.value,
-          updatedAt: DateTime(2026),
-        ),
-  ];
-}
-
-class ChromiumWrite {
-  final String origin;
-  final StoredPermission permission;
-  final StoredPermissionValue value;
-  ChromiumWrite(this.origin, this.permission, this.value);
-
-  @override
-  bool operator ==(Object other) =>
-      other is ChromiumWrite &&
-      other.origin == origin &&
-      other.permission == permission &&
-      other.value == value;
-
-  @override
-  int get hashCode => Object.hash(origin, permission, value);
-
-  @override
-  String toString() => 'ChromiumWrite($origin, $permission, $value)';
-}
 
 class Answer {
   final WebviewPermissionRequest request;
@@ -98,24 +39,26 @@ const camMic =
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  late InMemorySitePermissionRepository repo;
   late List<Answer> answers;
-  late List<ChromiumWrite> chromiumWrites;
+
+  /// Decisions in Chromium's normal profile: origin -> permission -> value.
+  late Map<String, Map<StoredPermission, StoredPermissionValue>> chromium;
+  late List<(String, StoredPermission)> chromiumReads;
   late PermissionBloc bloc;
   late WebViewController tabA;
   late WebViewController tabB;
 
   setUp(() {
-    repo = InMemorySitePermissionRepository();
     answers = [];
-    chromiumWrites = [];
+    chromium = {};
+    chromiumReads = [];
     bloc = PermissionBloc(
-      repository: repo,
       respond: (request, allow, {promptResult}) async {
         answers.add(Answer(request, allow, promptResult));
       },
-      writeChromium: (origin, permission, value) async {
-        chromiumWrites.add(ChromiumWrite(origin, permission, value));
+      readChromium: (origin, permission) async {
+        chromiumReads.add((origin, permission));
+        return chromium[origin]?[permission];
       },
     );
     const channel = MethodChannel('test');
@@ -141,6 +84,11 @@ void main() {
         isPrivate: isPrivate,
       ),
     );
+  }
+
+  Future<void> decide(String tabId, {required bool allow}) async {
+    bloc.add(PermissionDecided(bloc.state.promptFor(tabId)!, allow: allow));
+    await settle();
   }
 
   group('classifyPermissionRequest', () {
@@ -200,66 +148,123 @@ void main() {
     expect(answers.single.allow, isFalse);
   });
 
-  test('notification request is prompted and Allow grants it', () async {
+  test('notification Allow is answered; Chromium does the storing', () async {
     request(tabA, 'a', prompt(8, PromptPermission.notifications));
     await settle();
-    final pending = bloc.state.promptFor('a')!;
-    expect(pending.kinds, [SitePermissionKind.notifications]);
-
-    bloc.add(PermissionDecided(pending, allow: true));
-    await settle();
+    expect(bloc.state.promptFor('a')!.kinds, [
+      SitePermissionKind.notifications,
+    ]);
+    await decide('a', allow: true);
     expect(answers.single.allow, isTrue);
-    expect(repo.decisionsFor('https://maps.example.com'), {
-      SitePermissionKind.notifications: true,
-    });
-    // Answering the prompt stores the decision in Chromium by itself.
-    expect(chromiumWrites, isEmpty);
+    expect(chromiumReads, isEmpty, reason: 'normal tabs never read');
   });
 
-  test('Allow answers, remembers, and settles duplicates', () async {
-    request(tabA, 'a', media(1, camMic));
-    request(tabB, 'b', media(2, MediaPermission.deviceVideoCapture));
-    await settle();
-    expect(bloc.state.pending, hasLength(2));
+  group('camera and microphone last for the visit', () {
+    test('asked once while the tab stays on the site', () async {
+      request(tabA, 'a', media(1, camMic));
+      await settle();
+      await decide('a', allow: true);
 
-    bloc.add(PermissionDecided(bloc.state.promptFor('a')!, allow: true));
+      request(tabA, 'a', media(2, MediaPermission.deviceVideoCapture));
+      await settle();
+      expect(bloc.state.pending, isEmpty);
+      expect(answers.map((a) => (a.request.requestId, a.allow)), [
+        (1, true),
+        (2, true),
+      ]);
+    });
+
+    test('a block in the visit wins over an undecided kind', () async {
+      request(tabA, 'a', media(1, MediaPermission.deviceAudioCapture));
+      await settle();
+      await decide('a', allow: false);
+
+      request(tabA, 'a', media(2, camMic));
+      await settle();
+      expect(bloc.state.pending, isEmpty);
+      expect(answers.last.allow, isFalse);
+    });
+
+    test('a new visit asks again', () async {
+      request(tabA, 'a', media(1, camMic));
+      await settle();
+      await decide('a', allow: true);
+
+      bloc.add(const PermissionTabNavigated(tabId: 'a', url: 'https://x.org'));
+      bloc.add(
+        const PermissionTabNavigated(
+          tabId: 'a',
+          url: 'https://meet.example.com/room',
+        ),
+      );
+      request(tabA, 'a', media(2, camMic));
+      await settle();
+      expect(bloc.state.promptFor('a')?.request.requestId, 2);
+    });
+
+    test('same-site navigation keeps the decision', () async {
+      request(tabA, 'a', media(1, camMic));
+      await settle();
+      await decide('a', allow: true);
+
+      bloc.add(
+        const PermissionTabNavigated(
+          tabId: 'a',
+          url: 'https://meet.example.com/room/2',
+        ),
+      );
+      request(tabA, 'a', media(2, camMic));
+      await settle();
+      expect(bloc.state.pending, isEmpty);
+      expect(answers.last.allow, isTrue);
+    });
+
+    test('closing the tab forgets the decision', () async {
+      request(tabA, 'a', media(1, camMic));
+      await settle();
+      await decide('a', allow: true);
+
+      bloc.add(PermissionControllerDisposed(tabA));
+      request(tabB, 'a', media(2, camMic));
+      await settle();
+      expect(bloc.state.promptFor('a')?.request.requestId, 2);
+    });
+
+    test('another tab on the same site is asked itself', () async {
+      request(tabA, 'a', media(1, camMic));
+      request(tabB, 'b', media(2, camMic));
+      await settle();
+      await decide('a', allow: true);
+
+      expect(answers.single.request.requestId, 1);
+      expect(bloc.state.promptFor('b')?.request.requestId, 2);
+    });
+  });
+
+  test('prompt permission settles the same site in other normal tabs', () async {
+    request(tabA, 'a', prompt(1, PromptPermission.geolocation));
+    request(tabB, 'b', prompt(2, PromptPermission.geolocation));
     await settle();
+    await decide('a', allow: false);
 
     expect(bloc.state.pending, isEmpty);
     expect(answers.map((a) => (a.request.requestId, a.allow)), [
-      (1, true),
-      (2, true),
+      (1, false),
+      (2, false),
     ]);
-    expect(repo.decisionsFor('https://meet.example.com'), {
-      SitePermissionKind.camera: true,
-      SitePermissionKind.microphone: true,
-    });
-
-    // Next request is answered from memory.
-    request(tabA, 'a', media(3, camMic));
-    await settle();
-    expect(bloc.state.pending, isEmpty);
-    expect(answers.last.allow, isTrue);
-  });
-
-  test('a remembered block wins over an unknown kind', () async {
-    repo.save('https://meet.example.com', [
-      SitePermissionKind.microphone,
-    ], false);
-    request(tabA, 'a', media(1, camMic));
-    await settle();
-    expect(bloc.state.pending, isEmpty);
-    expect(answers.single.allow, isFalse);
   });
 
   test('closing the prompt denies once and remembers nothing', () async {
-    request(tabA, 'a', prompt(5, PromptPermission.geolocation));
+    request(tabA, 'a', media(5, camMic));
     await settle();
     bloc.add(PermissionPromptClosed(bloc.state.promptFor('a')!));
     await settle();
     expect(answers.single.allow, isFalse);
     expect(answers.single.promptResult, PermissionPromptResult.dismiss);
-    expect(repo.data, isEmpty);
+
+    request(tabA, 'a', media(6, camMic));
+    await settle();
+    expect(bloc.state.promptFor('a')?.request.requestId, 6);
   });
 
   test('navigating to another origin drops the request', () async {
@@ -297,126 +302,60 @@ void main() {
   });
 
   group('private tabs', () {
-    test('inherit blocks but not allows', () async {
-      repo.save('https://meet.example.com', [SitePermissionKind.camera], true);
-      repo.save('https://maps.example.com', [
-        SitePermissionKind.location,
-      ], false);
-
+    test('inherit a block from the normal profile', () async {
+      chromium['https://maps.example.com'] = {
+        StoredPermission.geolocation: StoredPermissionValue.block,
+      };
       request(
         tabA,
         'a',
-        media(1, MediaPermission.deviceVideoCapture),
-        isPrivate: true,
-      );
-      request(
-        tabA,
-        'a',
-        prompt(2, PromptPermission.geolocation),
+        prompt(1, PromptPermission.geolocation),
         isPrivate: true,
       );
       await settle();
-
-      expect(bloc.state.pending.single.request.requestId, 1);
-      expect(answers.single.request.requestId, 2);
+      expect(bloc.state.pending, isEmpty);
       expect(answers.single.allow, isFalse);
+      expect(chromiumReads.single, (
+        'https://maps.example.com',
+        StoredPermission.geolocation,
+      ));
     });
 
-    test('decisions stay in memory and end with the session', () async {
+    test('never inherit an allow', () async {
+      chromium['https://maps.example.com'] = {
+        StoredPermission.notifications: StoredPermissionValue.allow,
+      };
+      request(
+        tabA,
+        'a',
+        prompt(1, PromptPermission.notifications),
+        isPrivate: true,
+      );
+      await settle();
+      expect(bloc.state.promptFor('a')?.request.requestId, 1);
+      expect(answers, isEmpty);
+    });
+
+    test('camera has nothing to inherit and is prompted', () async {
       request(tabA, 'a', media(1, camMic), isPrivate: true);
       await settle();
-      bloc.add(PermissionDecided(bloc.state.promptFor('a')!, allow: true));
-      await settle();
-      expect(repo.data, isEmpty);
-
-      request(tabA, 'a', media(2, camMic), isPrivate: true);
-      await settle();
-      expect(answers.last.allow, isTrue);
-      expect(bloc.state.pending, isEmpty);
-
-      bloc.add(const PermissionPrivateSessionEnded());
-      request(tabA, 'a', media(3, camMic), isPrivate: true);
-      await settle();
-      expect(bloc.state.pending, hasLength(1));
-    });
-  });
-
-  test('settings changes and resets update the list', () async {
-    bloc.add(
-      const SitePermissionChanged(
-        origin: 'https://a.com',
-        kind: SitePermissionKind.camera,
-        allowed: false,
-      ),
-    );
-    await settle();
-    expect(bloc.state.sitePermissions.single.allowed, isFalse);
-    bloc.add(const SitePermissionReset('https://a.com'));
-    await settle();
-    expect(bloc.state.sitePermissions, isEmpty);
-  });
-
-  group('Chromium stored decisions', () {
-    test('settings change overwrites Chromium\'s decision', () async {
-      bloc.add(
-        const SitePermissionChanged(
-          origin: 'https://a.com',
-          kind: SitePermissionKind.notifications,
-          allowed: true,
-        ),
-      );
-      await settle();
-      expect(chromiumWrites, [
-        ChromiumWrite(
-          'https://a.com',
-          StoredPermission.notifications,
-          StoredPermissionValue.allow,
-        ),
-      ]);
+      expect(chromiumReads, isEmpty);
+      expect(bloc.state.promptFor('a')?.request.requestId, 1);
     });
 
-    test('reset of one kind makes Chromium ask again', () async {
-      bloc.add(
-        const SitePermissionReset(
-          'https://a.com',
-          SitePermissionKind.location,
-        ),
+    test('private decisions do not settle normal tabs', () async {
+      request(
+        tabA,
+        'a',
+        prompt(1, PromptPermission.geolocation),
+        isPrivate: true,
       );
+      request(tabB, 'b', prompt(2, PromptPermission.geolocation));
       await settle();
-      expect(chromiumWrites, [
-        ChromiumWrite(
-          'https://a.com',
-          StoredPermission.geolocation,
-          StoredPermissionValue.ask,
-        ),
-      ]);
-    });
+      await decide('a', allow: true);
 
-    test('site reset clears every kind Chromium stores', () async {
-      bloc.add(const SitePermissionReset('https://a.com'));
-      await settle();
-      expect(chromiumWrites.map((w) => w.permission), [
-        StoredPermission.geolocation,
-        StoredPermission.notifications,
-        StoredPermission.clipboard,
-        StoredPermission.midi,
-      ]);
-      expect(
-        chromiumWrites.every((w) => w.value == StoredPermissionValue.ask),
-        isTrue,
-      );
-    });
-
-    test('camera has no Chromium decision to write', () async {
-      bloc.add(
-        const SitePermissionChanged(
-          origin: 'https://a.com',
-          kind: SitePermissionKind.camera,
-          allowed: false,
-        ),
-      );
-      await settle();
-      expect(chromiumWrites, isEmpty);
+      expect(answers.single.request.requestId, 1);
+      expect(bloc.state.promptFor('b')?.request.requestId, 2);
     });
   });
 }

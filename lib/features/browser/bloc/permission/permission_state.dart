@@ -37,13 +37,7 @@ class PermissionState extends Equatable {
   /// Requests waiting for an answer, oldest first.
   final List<PendingPermission> pending;
 
-  /// Remembered decisions, for the Site permissions screen.
-  final List<SitePermission> sitePermissions;
-
-  const PermissionState({
-    this.pending = const [],
-    this.sitePermissions = const [],
-  });
+  const PermissionState({this.pending = const []});
 
   /// The request to show for [tabId], if any.
   PendingPermission? promptFor(String? tabId) {
@@ -54,16 +48,10 @@ class PermissionState extends Equatable {
     return null;
   }
 
-  PermissionState copyWith({
-    List<PendingPermission>? pending,
-    List<SitePermission>? sitePermissions,
-  }) {
-    return PermissionState(
-      pending: pending ?? this.pending,
-      sitePermissions: sitePermissions ?? this.sitePermissions,
-    );
+  PermissionState copyWith({List<PendingPermission>? pending}) {
+    return PermissionState(pending: pending ?? this.pending);
   }
 
   @override
-  List<Object?> get props => [pending, sitePermissions];
+  List<Object?> get props => [pending];
 }
