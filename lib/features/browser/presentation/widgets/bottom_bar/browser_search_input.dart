@@ -56,6 +56,10 @@ class BrowserSearchInput extends StatelessWidget {
         theme.textTheme.bodyLarge?.copyWith(color: colors.searchBarText),
       ),
       keyboardType: TextInputType.url,
+      // On Linux a text field unfocuses on any touch outside it, which closed
+      // the suggestions before a tap on one could land. The bottom bar's
+      // 'browser_search' TapRegion (bar + suggestions) handles outside taps.
+      onTapOutside: (_) {},
       onChanged: onChanged,
       onSubmitted: onSubmitted,
     );

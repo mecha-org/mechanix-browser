@@ -46,46 +46,55 @@ class BrowserSuggestionsPanel extends StatelessWidget {
       constraints: const BoxConstraints(maxHeight: 280),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(16),
-        child: ListView.separated(
-          shrinkWrap: true,
-          padding: const EdgeInsets.symmetric(vertical: 8),
-          itemCount: state.searchResults.length,
-          separatorBuilder: (context, index) =>
-              Divider(color: colors.dividerColor, height: 1),
-          itemBuilder: (context, index) {
-            final item = state.searchResults[index];
-            return HighlightedRow(
-              controller: highlight,
-              index: index,
-              borderRadius: BorderRadius.zero,
-              child: ListTile(
-                leading: const _SuggestionLeadingIcon(),
-                title: Text(
-                  item.title,
-                  style: theme.textTheme.bodyMedium,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+        // The rows paint their ink on a Material; the coloured box above
+        // would otherwise cover it.
+        child: Material(
+          type: MaterialType.transparency,
+          child: ListView.separated(
+            shrinkWrap: true,
+            padding: const EdgeInsets.symmetric(vertical: 8),
+            itemCount: state.searchResults.length,
+            separatorBuilder: (context, index) =>
+                Divider(color: colors.dividerColor, height: 1),
+            itemBuilder: (context, index) {
+              final item = state.searchResults[index];
+              return HighlightedRow(
+                controller: highlight,
+                index: index,
+                borderRadius: BorderRadius.zero,
+                child: ListTile(
+                  leading: const _SuggestionLeadingIcon(),
+                  title: Text(
+                    item.title,
+                    style: theme.textTheme.bodyMedium,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    item.url,
+                    style: theme.textTheme.labelSmall,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  dense: true,
+                  visualDensity: VisualDensity.compact,
+                  trailing: IconButton(
+                    icon: Icon(
+                      Icons.close,
+                      size: 16,
+                      color: colors.textTertiary,
+                    ),
+                    onPressed: () {
+                      bloc.add(
+                        BrowserHistoryItemDeleted(item, textController.text),
+                      );
+                    },
+                  ),
+                  onTap: () => onSelect(item),
                 ),
-                subtitle: Text(
-                  item.url,
-                  style: theme.textTheme.labelSmall,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                dense: true,
-                visualDensity: VisualDensity.compact,
-                trailing: IconButton(
-                  icon: Icon(Icons.close, size: 16, color: colors.textTertiary),
-                  onPressed: () {
-                    bloc.add(
-                      BrowserHistoryItemDeleted(item, textController.text),
-                    );
-                  },
-                ),
-                onTap: () => onSelect(item),
-              ),
-            );
-          },
+              );
+            },
+          ),
         ),
       ),
     );
