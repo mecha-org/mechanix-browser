@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
+import 'package:mechanix_browser/features/browser/presentation/widgets/app_text_context_menu.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/list_key_navigation.dart';
 
 /// Search box above the history and bookmarks lists. Reports every change
@@ -54,6 +55,7 @@ class _ListSearchFieldState extends State<ListSearchField> {
         setState(() {}); // show or hide the clear button
       },
       onSubmitted: (_) => widget.onSubmitted?.call(),
+      contextMenuBuilder: appTextContextMenu,
       textInputAction: TextInputAction.search,
       decoration: InputDecoration(
         hintText: widget.hintText,

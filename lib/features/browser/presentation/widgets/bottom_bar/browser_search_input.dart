@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
+import 'package:mechanix_browser/features/browser/presentation/widgets/app_text_context_menu.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
 
 class BrowserSearchInput extends StatelessWidget {
@@ -60,6 +61,7 @@ class BrowserSearchInput extends StatelessWidget {
       // the suggestions before a tap on one could land. The bottom bar's
       // 'browser_search' TapRegion (bar + suggestions) handles outside taps.
       onTapOutside: (_) {},
+      contextMenuBuilder: appTextContextMenu,
       onChanged: onChanged,
       onSubmitted: onSubmitted,
     );
