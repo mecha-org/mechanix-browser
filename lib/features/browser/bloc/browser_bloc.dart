@@ -59,7 +59,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
   List<TabEntity>? _pendingTabsSnapshot;
   Future<void>? _tabsWrite;
 
-
   /// Local incremental counter for unique tab ID generation.
   int _tabIdCounter = 0;
 
@@ -146,6 +145,69 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
     on<BrowserLoadErrorOccurred>(_onLoadErrorOccurred);
   }
 
+  /// Ids of tabs whose browser is being created.
+  final _startingBrowsers = <String>{};
+
+  /// Creates the browser of tab [tabId] on [url], then shows it if the tab
+  /// is active by then.
+  Future<void> _startBrowser(
+    String tabId,
+    WebViewController controller,
+    String url, {
+    required bool isPrivate,
+  }) async {
+    _startingBrowsers.add(tabId);
+    try {
+      await controller.initialize(url, isPrivate: isPrivate);
+    } catch (e, stackTrace) {
+      AppLogger.e('Error creating browser', error: e, stack: stackTrace);
+    } finally {
+      _startingBrowsers.remove(tabId);
+    }
+    final activeTab = state.activeTab;
+    if (activeTab != null && activeTab.id == tabId) {
+      await _activateBrowser(activeTab);
+    }
+  }
+
+  /// Opens [url] in [tab], creating its browser first if it has none yet.
+  Future<void> _navigate(BrowserTab tab, String url) async {
+    final controller = tab.controller;
+    if (controller.value) {
+      await controller.loadUrl(url);
+    } else if (_startingBrowsers.contains(tab.id)) {
+      // Still being created on an earlier URL: go to this one once it exists.
+      await controller.ready;
+      if (controller.value) await controller.loadUrl(url);
+    } else {
+      await _startBrowser(tab.id, controller, url, isPrivate: tab.isPrivate);
+    }
+  }
+
+  /// Focuses and shows the browser of [tab], which has just become the active
+  /// tab. A tab with a page but no browser yet (restored, not opened since
+  /// start-up) gets one; a tab on the home page keeps having none.
+  Future<void> _activateBrowser(BrowserTab tab) async {
+    final controller = tab.controller;
+    if (controller.value) {
+      if (state.activeTab?.id != tab.id) return;
+      await controller.setClientFocus(true);
+      await controller.wasHidden(false);
+    } else if (!tab.isHomePage &&
+        tab.currentUrl.isNotEmpty &&
+        !_startingBrowsers.contains(tab.id)) {
+      // _startBrowser activates it once created.
+      unawaited(
+        _startBrowser(
+          tab.id,
+          controller,
+          tab.currentUrl,
+          isPrivate: tab.isPrivate,
+        ),
+      );
+    }
+  }
+
   /// Creates a new tab instance with the specified [initialUrl].
   /// Sets up Javascript inject user scripts, instantiates a new CEF webview controller,
   /// attaches event listeners, and initializes the loading of the URL.
@@ -185,8 +247,13 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       isPrivate: isPrivate,
     );
     controller.setWebviewListener(listener);
-    if (load) {
-      controller.initialize(initialUrl, isPrivate: isPrivate);
+    // A tab on the home page gets its browser only when it first navigates
+    // (see _navigate): the home page is drawn by Flutter, and a browser per
+    // new tab costs memory and start-up time for a page nobody sees.
+    if (load && initialUrl != AppConstants.homepageUrl) {
+      unawaited(
+        _startBrowser(tabId, controller, initialUrl, isPrivate: isPrivate),
+      );
     }
 
     return BrowserTab(
@@ -678,14 +745,8 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
       }
 
       _updateCurrentPageBookmarkStatus(emit, targetUrl: newTab.currentUrl);
-
-      newTab.controller.ready.then((_) async {
-        final currentActiveTab = state.activeTab;
-        if (currentActiveTab != null && currentActiveTab.id == newTab.id) {
-          await newTab.controller.setClientFocus(true);
-          await newTab.controller.wasHidden(false);
-        }
-      });
+      // No browser to show yet: a home-page tab has none, and one opened on a
+      // URL is shown by _startBrowser once created.
     } catch (e, stackTrace) {
       AppLogger.e("Error opening new tab", error: e, stack: stackTrace);
     }
@@ -786,20 +847,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
           );
         }
 
-        /// focus new tab when ready
-        if (newActiveTab.controller.value) {
-          await newActiveTab.controller.setClientFocus(true);
-          await newActiveTab.controller.wasHidden(false);
-        } else {
-          newActiveTab.controller.ready.then((_) async {
-            final currentActiveTab = state.activeTab;
-            if (currentActiveTab != null &&
-                currentActiveTab.id == newActiveTab.id) {
-              await newActiveTab.controller.setClientFocus(true);
-              await newActiveTab.controller.wasHidden(false);
-            }
-          });
-        }
+        await _activateBrowser(newActiveTab);
       }
     } catch (e, stackTrace) {
       AppLogger.e("Error closing tab", error: e, stack: stackTrace);
@@ -866,22 +914,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
       _updateCurrentPageBookmarkStatus(emit, targetUrl: newTab.currentUrl);
 
-      if (newTab.controller.value) {
-        await newTab.controller.setClientFocus(true);
-        await newTab.controller.wasHidden(false);
-      } else {
-        newTab.controller.initialize(
-          newTab.isHomePage ? AppConstants.homepageUrl : newTab.currentUrl,
-          isPrivate: newTab.isPrivate,
-        );
-        newTab.controller.ready.then((_) async {
-          final currentActiveTab = state.activeTab;
-          if (currentActiveTab != null && currentActiveTab.id == newTab.id) {
-            await newTab.controller.setClientFocus(true);
-            await newTab.controller.wasHidden(false);
-          }
-        });
-      }
+      await _activateBrowser(newTab);
     } catch (e, stackTrace) {
       AppLogger.e("Error switching tab", error: e, stack: stackTrace);
     }
@@ -913,14 +946,6 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         emit(state.copyWith(normalTabs: [firstTab], activeNormalTabIndex: 0));
         _updateCurrentPageBookmarkStatus(emit, targetUrl: '');
         _persistTabs();
-
-        firstTab.controller.ready.then((_) async {
-          final currentActiveTab = state.activeTab;
-          if (currentActiveTab != null && currentActiveTab.id == firstTab.id) {
-            await firstTab.controller.setClientFocus(true);
-            await firstTab.controller.wasHidden(false);
-          }
-        });
       }
     } catch (e, stackTrace) {
       AppLogger.e("Error closing tabs", error: e, stack: stackTrace);
@@ -1048,9 +1073,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
         _persistTabs();
       }
 
-      if (activeTab.controller.value) {
-        await activeTab.controller.loadUrl(finalUrl);
-      }
+      await _navigate(activeTab, finalUrl);
     } catch (e, stackTrace) {
       AppLogger.e("Error loading URL", error: e, stack: stackTrace);
     }
@@ -1482,20 +1505,7 @@ class BrowserBloc extends Bloc<BrowserEvent, BrowserState> {
 
     _updateCurrentPageBookmarkStatus(emit);
 
-    if (newTab != null) {
-      if (newTab.controller.value) {
-        await newTab.controller.setClientFocus(true);
-        await newTab.controller.wasHidden(false);
-      } else {
-        newTab.controller.ready.then((_) async {
-          final currentActiveTab = state.activeTab;
-          if (currentActiveTab != null && currentActiveTab.id == newTab.id) {
-            await newTab.controller.setClientFocus(true);
-            await newTab.controller.wasHidden(false);
-          }
-        });
-      }
-    }
+    if (newTab != null) await _activateBrowser(newTab);
   }
 
   void _onTabSwitcherOpened(
