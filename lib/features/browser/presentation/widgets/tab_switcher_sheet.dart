@@ -6,7 +6,7 @@ import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/tab_switcher/tab_card_item.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
 
-class TabSwitcherSheet extends StatelessWidget {
+class TabSwitcherSheet extends StatefulWidget {
   final BrowserBloc bloc;
 
   const TabSwitcherSheet({super.key, required this.bloc});
@@ -26,6 +26,60 @@ class TabSwitcherSheet extends StatelessWidget {
       },
     ).then((_) {
       bloc.add(const BrowserWasHiddenRequested(false));
+    });
+  }
+
+  @override
+  State<TabSwitcherSheet> createState() => _TabSwitcherSheetState();
+}
+
+class _TabSwitcherSheetState extends State<TabSwitcherSheet> {
+  /// Space under the grid kept clear of the buttons overlaid at the bottom.
+  static const _bottomPadding = 80.0;
+
+  /// Created on the first layout, already scrolled to the active tab.
+  ScrollController? _scroll;
+
+  /// Which list (private or normal) [_scroll] was last placed for.
+  bool? _placedForPrivate;
+
+  BrowserBloc get bloc => widget.bloc;
+
+  @override
+  void dispose() {
+    _scroll?.dispose();
+    super.dispose();
+  }
+
+  /// Scroll offset that shows the card at [cardTop] in the middle of the
+  /// part of the [viewport] not covered by the bottom buttons.
+  static double _offsetToShow({
+    required double cardTop,
+    required double cardHeight,
+    required double contentHeight,
+    required double viewport,
+  }) {
+    final visible = viewport - _bottomPadding;
+    final offset = cardTop - (visible - cardHeight) / 2;
+    final maxOffset = contentHeight - viewport;
+    return offset.clamp(0.0, maxOffset < 0 ? 0.0 : maxOffset);
+  }
+
+  /// Opens on the active tab, and moves to the other list's active tab when
+  /// switching between normal and private tabs. Other rebuilds (closing a
+  /// tab...) keep the user's scroll position.
+  void _placeOnActiveTab(bool isPrivateView, double offset) {
+    final scroll = _scroll;
+    if (scroll == null) {
+      _scroll = ScrollController(initialScrollOffset: offset);
+      _placedForPrivate = isPrivateView;
+      return;
+    }
+    if (_placedForPrivate == isPrivateView) return;
+    _placedForPrivate = isPrivateView;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !scroll.hasClients) return;
+      scroll.jumpTo(offset.clamp(0.0, scroll.position.maxScrollExtent));
     });
   }
 
@@ -147,8 +201,27 @@ class TabSwitcherSheet extends StatelessWidget {
                                       ? (rowCount - 1) * mainAxisSpacing
                                       : 0);
 
+                              final activeTop =
+                                  activeIndex >= 0 &&
+                                      activeIndex < tabList.length
+                                  ? (activeIndex ~/ columns) *
+                                        (itemHeight + mainAxisSpacing)
+                                  : 0.0;
+                              _placeOnActiveTab(
+                                isPrivateView,
+                                _offsetToShow(
+                                  cardTop: activeTop,
+                                  cardHeight: itemHeight,
+                                  contentHeight: gridHeight + _bottomPadding,
+                                  viewport: constraints.maxHeight,
+                                ),
+                              );
+
                               return SingleChildScrollView(
-                                padding: const EdgeInsets.only(bottom: 80),
+                                controller: _scroll,
+                                padding: const EdgeInsets.only(
+                                  bottom: _bottomPadding,
+                                ),
                                 child: SizedBox(
                                   height: gridHeight,
                                   child: Stack(
