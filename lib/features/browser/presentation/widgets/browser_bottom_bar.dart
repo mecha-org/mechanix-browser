@@ -7,7 +7,9 @@ import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/bottom_bar/browser_bottom_actions.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/bottom_bar/browser_search_input.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/browser_menu_popup.dart';
+import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/browser_suggestions_panel.dart';
+import 'package:mechanix_browser/features/browser/presentation/widgets/list_key_navigation.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/tab_switcher_sheet.dart';
 
 class BrowserBottomBar extends StatefulWidget {
@@ -28,6 +30,9 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
   OverlayEntry? _menuOverlayEntry;
   Timer? _debounceTimer;
   String _lastUrl = '';
+
+  /// Suggestion picked with the arrow keys while typing in the address bar.
+  final _highlight = ListHighlightController();
 
   @override
   void initState() {
@@ -107,18 +112,16 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
                 value: bloc,
                 child: BlocBuilder<BrowserBloc, BrowserState>(
                   builder: (context, state) {
+                    _highlight.itemCount = state.searchResults.length;
                     if (state.searchResults.isEmpty) {
                       return const SizedBox.shrink();
                     }
                     return BrowserSuggestionsPanel(
                       textController: _textController,
-                      focusNode: _focusNode,
                       bloc: bloc,
                       state: state,
-                      onTapItem: () {
-                        _hideOverlay();
-                        _focusNode.unfocus();
-                      },
+                      highlight: _highlight,
+                      onSelect: _openSuggestion,
                     );
                   },
                 ),
@@ -132,7 +135,20 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
     Overlay.of(context).insert(_overlayEntry!);
   }
 
+  /// Loads [item] (a tapped suggestion, or the highlighted one on Enter).
+  void _openSuggestion(BrowserHistory item) {
+    final bloc = context.read<BrowserBloc>();
+    final isUri = Uri.tryParse(item.url)?.isAbsolute ?? false;
+    final target = isUri ? item.url : item.title;
+    _textController.text = target;
+    bloc.add(BrowserUrlLoadRequested(target));
+    bloc.add(const BrowserSearchQueryChanged(''));
+    _hideOverlay();
+    _focusNode.unfocus();
+  }
+
   void _hideOverlay() {
+    _highlight.clear();
     if (_overlayEntry != null) {
       context.read<BrowserBloc>().add(
         const BrowserBottomBarVisibilityChanged(true, isInteracting: false),
@@ -206,6 +222,7 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
     _focusNode.removeListener(_onFocusChange);
     if (widget.addressBarFocusNode == null) _focusNode.dispose();
     _textController.dispose();
+    _highlight.dispose();
     super.dispose();
   }
 
@@ -261,27 +278,39 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
                 spacing: 8,
                 children: [
                   Expanded(
-                    child: BrowserSearchInput(
-                      focusNode: _focusNode,
-                      controller: _textController,
-                      isPrivate: state.mode == BrowserMode.private,
-                      onChanged: (value) {
-                        _debounceTimer?.cancel();
-                        _debounceTimer = Timer(
-                          const Duration(milliseconds: 200),
-                          () {
-                            bloc.add(BrowserSearchQueryChanged(value));
-                          },
-                        );
-                      },
-                      onSubmitted: (url) {
-                        if (state.isInitialized) {
+                    child: ListKeyNavigation(
+                      controller: _highlight,
+                      child: BrowserSearchInput(
+                        focusNode: _focusNode,
+                        controller: _textController,
+                        isPrivate: state.mode == BrowserMode.private,
+                        onChanged: (value) {
+                          // New text brings new suggestions; drop the old pick.
+                          _highlight.clear();
+                          _debounceTimer?.cancel();
+                          _debounceTimer = Timer(
+                            const Duration(milliseconds: 200),
+                            () {
+                              bloc.add(BrowserSearchQueryChanged(value));
+                            },
+                          );
+                        },
+                        onSubmitted: (url) {
+                          if (!state.isInitialized) return;
+                          // Enter opens the suggestion picked with the arrow
+                          // keys, if any, instead of the typed text.
+                          final index = _highlight.current;
+                          final results = bloc.state.searchResults;
+                          if (index != null && index < results.length) {
+                            _openSuggestion(results[index]);
+                            return;
+                          }
                           bloc.add(BrowserUrlLoadRequested(url));
                           bloc.add(const BrowserSearchQueryChanged(''));
                           _hideOverlay();
                           _focusNode.unfocus();
-                        }
-                      },
+                        },
+                      ),
                     ),
                   ),
                   if (!_focusNode.hasFocus)

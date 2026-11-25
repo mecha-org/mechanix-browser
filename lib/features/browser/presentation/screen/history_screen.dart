@@ -5,6 +5,7 @@ import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
 import 'package:mechanix_browser/features/browser/bloc/history/history_bloc.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/history/history_section.dart';
+import 'package:mechanix_browser/features/browser/presentation/widgets/list_key_navigation.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/list_search_field.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
 import 'package:mechanix_browser/features/browser/data/models/page_transition.dart';
@@ -17,10 +18,26 @@ class HistoryScreen extends StatefulWidget {
 }
 
 class _HistoryScreenState extends State<HistoryScreen> {
+  final _highlight = ListHighlightController();
+
   @override
   void initState() {
     super.initState();
     context.read<HistoryBloc>().add(const HistoryLoadRequested());
+  }
+
+  @override
+  void dispose() {
+    _highlight.dispose();
+    super.dispose();
+  }
+
+  /// Enter in the search field opens the row picked with the arrow keys.
+  void _onSearchSubmitted(BuildContext context, HistoryState state) {
+    final index = _highlight.current;
+    if (index == null) return;
+    final items = state.groupedSections.expand((g) => g.items).toList();
+    if (index < items.length) _onItemTap(context, items[index]);
   }
 
   void _onItemTap(BuildContext context, BrowserHistory item) {
@@ -86,6 +103,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 child: ListSearchField(
                   hintText: l10n.searchHistory,
+                  highlight: _highlight,
+                  onSubmitted: () => _onSearchSubmitted(context, state),
                   onChanged: (query) => context.read<HistoryBloc>().add(
                     HistorySearchQueryChanged(query),
                   ),
@@ -103,6 +122,15 @@ class _HistoryScreenState extends State<HistoryScreen> {
     final theme = Theme.of(context);
     final colors = theme.extension<AppColorsExtension>()!;
     final l10n = AppLocalizations.of(context)!;
+    // Arrow keys move through the rows on screen; sections start where the
+    // previous ones end.
+    final firstIndexes = <int>[];
+    var rowCount = 0;
+    for (final group in state.groupedSections) {
+      firstIndexes.add(rowCount);
+      rowCount += group.items.length;
+    }
+    _highlight.itemCount = state.isLoading ? 0 : rowCount;
     if (state.isEmpty && state.searchQuery.isNotEmpty && !state.isLoading) {
       return Center(
         child: Text(l10n.noSearchResults, style: theme.textTheme.bodyMedium),
@@ -160,6 +188,8 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   group: group,
                   onItemTap: (item) => _onItemTap(context, item),
                   onItemDelete: (item) => _onItemDelete(context, item),
+                  highlight: _highlight,
+                  firstIndex: firstIndexes[index],
                 );
               },
             ),

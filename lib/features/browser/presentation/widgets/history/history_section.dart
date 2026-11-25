@@ -3,6 +3,7 @@ import 'package:mechanix_browser/core/utils/app_theme.dart';
 import 'package:mechanix_browser/core/utils/history_date_grouper.dart';
 import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/history/history_list_item.dart';
+import 'package:mechanix_browser/features/browser/presentation/widgets/list_key_navigation.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
 
 class HistorySection extends StatelessWidget {
@@ -10,11 +11,18 @@ class HistorySection extends StatelessWidget {
   final ValueChanged<BrowserHistory> onItemTap;
   final ValueChanged<BrowserHistory> onItemDelete;
 
+  /// Arrow-key highlight for the whole history list, and the list position
+  /// of this section's first item.
+  final ListHighlightController? highlight;
+  final int firstIndex;
+
   const HistorySection({
     super.key,
     required this.group,
     required this.onItemTap,
     required this.onItemDelete,
+    this.highlight,
+    this.firstIndex = 0,
   });
 
   String _getLocalizedTitle(BuildContext context, String title) {
@@ -63,11 +71,19 @@ class HistorySection extends StatelessWidget {
           separatorBuilder: (context, index) => const SizedBox(height: 4),
           itemBuilder: (context, index) {
             final item = group.items[index];
-            return HistoryListItem(
+            final row = HistoryListItem(
               item: item,
               onTap: () => onItemTap(item),
               onDelete: () => onItemDelete(item),
             );
+            final highlight = this.highlight;
+            return highlight == null
+                ? row
+                : HighlightedRow(
+                    controller: highlight,
+                    index: firstIndex + index,
+                    child: row,
+                  );
           },
         ),
         const SizedBox(height: 12),

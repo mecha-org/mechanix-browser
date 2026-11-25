@@ -1,21 +1,27 @@
 import 'package:flutter/material.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
 import 'package:mechanix_browser/features/browser/bloc/browser_bloc.dart';
+import 'package:mechanix_browser/features/browser/data/models/browser_history.dart';
+import 'package:mechanix_browser/features/browser/presentation/widgets/list_key_navigation.dart';
 
 class BrowserSuggestionsPanel extends StatelessWidget {
   final TextEditingController textController;
-  final FocusNode focusNode;
   final BrowserBloc bloc;
   final BrowserState state;
-  final VoidCallback onTapItem;
+
+  /// Opens a suggestion (tapped, or picked with the arrow keys and Enter).
+  final ValueChanged<BrowserHistory> onSelect;
+
+  /// The suggestion highlighted with the arrow keys from the address bar.
+  final ListHighlightController highlight;
 
   const BrowserSuggestionsPanel({
     super.key,
     required this.textController,
-    required this.focusNode,
     required this.bloc,
     required this.state,
-    required this.onTapItem,
+    required this.onSelect,
+    required this.highlight,
   });
 
   @override
@@ -48,44 +54,36 @@ class BrowserSuggestionsPanel extends StatelessWidget {
               Divider(color: colors.dividerColor, height: 1),
           itemBuilder: (context, index) {
             final item = state.searchResults[index];
-            return ListTile(
-              leading: const _SuggestionLeadingIcon(),
-              title: Text(
-                item.title,
-                style: theme.textTheme.bodyMedium,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            return HighlightedRow(
+              controller: highlight,
+              index: index,
+              borderRadius: BorderRadius.zero,
+              child: ListTile(
+                leading: const _SuggestionLeadingIcon(),
+                title: Text(
+                  item.title,
+                  style: theme.textTheme.bodyMedium,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  item.url,
+                  style: theme.textTheme.labelSmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                dense: true,
+                visualDensity: VisualDensity.compact,
+                trailing: IconButton(
+                  icon: Icon(Icons.close, size: 16, color: colors.textTertiary),
+                  onPressed: () {
+                    bloc.add(
+                      BrowserHistoryItemDeleted(item, textController.text),
+                    );
+                  },
+                ),
+                onTap: () => onSelect(item),
               ),
-              subtitle: Text(
-                item.url,
-                style: theme.textTheme.labelSmall,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-              dense: true,
-              visualDensity: VisualDensity.compact,
-              trailing: IconButton(
-                icon: Icon(Icons.close, size: 16, color: colors.textTertiary),
-                onPressed: () {
-                  bloc.add(
-                    BrowserHistoryItemDeleted(item, textController.text),
-                  );
-                },
-              ),
-              onTap: () {
-                final isUri = Uri.tryParse(item.url)?.isAbsolute;
-
-                if (isUri!) {
-                  textController.text = item.url;
-                  bloc.add(BrowserUrlLoadRequested(item.url));
-                } else {
-                  textController.text = item.title;
-                  bloc.add(BrowserUrlLoadRequested(item.title));
-                }
-
-                bloc.add(const BrowserSearchQueryChanged(''));
-                onTapItem();
-              },
             );
           },
         ),
