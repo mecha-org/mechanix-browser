@@ -13,6 +13,16 @@ Widget appTextContextMenu(
   EditableTextState editableTextState,
 ) => _AppTextContextMenu(editableTextState: editableTextState);
 
+/// [appTextContextMenu] for a field whose surroundings close on a tap
+/// outside a [TapRegion] group: the menu joins [groupId], so a touch on it
+/// (Paste, Copy...) isn't taken as a tap outside, which would unfocus the
+/// field and close the menu before the button press lands.
+EditableTextContextMenuBuilder appTextContextMenuInGroup(Object groupId) =>
+    (context, editableTextState) => TapRegion(
+      groupId: groupId,
+      child: appTextContextMenu(context, editableTextState),
+    );
+
 class _AppTextContextMenu extends StatefulWidget {
   final EditableTextState editableTextState;
 

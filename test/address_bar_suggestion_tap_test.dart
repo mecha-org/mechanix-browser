@@ -116,4 +116,35 @@ void main() {
       expect(loaded(), isEmpty);
     },
   );
+
+  testWidgets(
+    "the long-press menu's Paste pastes into the address bar",
+    variant: TargetPlatformVariant.only(TargetPlatform.linux),
+    (tester) async {
+      tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        (call) async => call.method == 'Clipboard.getData'
+            ? {'text': 'copied in the page'}
+            : null,
+      );
+      await pump(tester);
+
+      await tester.longPress(find.byType(TextField));
+      await tester.pumpAndSettle();
+      expect(find.text('Paste'), findsOneWidget);
+
+      // Press, let frames run (as on a real screen), then lift.
+      final gesture = await tester.startGesture(
+        tester.getCenter(find.text('Paste')),
+      );
+      await tester.pump(const Duration(milliseconds: 50));
+      await gesture.up();
+      await tester.pumpAndSettle();
+
+      final field = tester.widget<TextField>(find.byType(TextField));
+      expect(field.controller!.text, contains('copied in the page'));
+      expect(addressBar.hasFocus, isTrue);
+      expect(loaded(), isEmpty);
+    },
+  );
 }

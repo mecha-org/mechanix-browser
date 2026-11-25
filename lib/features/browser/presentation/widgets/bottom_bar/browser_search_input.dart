@@ -3,6 +3,10 @@ import 'package:mechanix_browser/core/utils/app_theme.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/app_text_context_menu.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
 
+/// [TapRegion] group of the address bar and everything that belongs to it
+/// (suggestions, its long-press menu): a tap outside the group closes them.
+const browserSearchTapGroup = 'browser_search';
+
 class BrowserSearchInput extends StatelessWidget {
   final FocusNode focusNode;
   final TextEditingController controller;
@@ -59,9 +63,10 @@ class BrowserSearchInput extends StatelessWidget {
       keyboardType: TextInputType.url,
       // On Linux a text field unfocuses on any touch outside it, which closed
       // the suggestions before a tap on one could land. The bottom bar's
-      // 'browser_search' TapRegion (bar + suggestions) handles outside taps.
+      // [browserSearchTapGroup] TapRegion (bar + suggestions) handles
+      // outside taps.
       onTapOutside: (_) {},
-      contextMenuBuilder: appTextContextMenu,
+      contextMenuBuilder: appTextContextMenuInGroup(browserSearchTapGroup),
       onChanged: onChanged,
       onSubmitted: onSubmitted,
     );

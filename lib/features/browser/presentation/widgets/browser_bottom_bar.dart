@@ -107,7 +107,7 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
           child: Material(
             color: Colors.transparent,
             child: TapRegion(
-              groupId: 'browser_search',
+              groupId: browserSearchTapGroup,
               child: BlocProvider.value(
                 value: bloc,
                 child: BlocBuilder<BrowserBloc, BrowserState>(
@@ -267,7 +267,7 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
             previous.tabs.length != current.tabs.length,
         builder: (context, state) {
           return TapRegion(
-            groupId: 'browser_search',
+            groupId: browserSearchTapGroup,
             onTapOutside: (event) {
               _hideOverlay();
               _focusNode.unfocus();
