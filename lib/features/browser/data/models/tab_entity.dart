@@ -1,8 +1,4 @@
-import 'package:objectbox/objectbox.dart';
-
-@Entity()
 class TabEntity {
-  @Id()
   int id;
 
   String tabId;
