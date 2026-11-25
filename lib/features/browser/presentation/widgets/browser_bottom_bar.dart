@@ -217,8 +217,12 @@ class _BrowserBottomBarState extends State<BrowserBottomBar> {
   @override
   void dispose() {
     _debounceTimer?.cancel();
-    _hideOverlay();
-    _hideMenu();
+    // Not _hideOverlay()/_hideMenu(): they message the bloc through
+    // context, which can't be used in dispose.
+    _overlayEntry?.remove();
+    _overlayEntry = null;
+    _menuOverlayEntry?.remove();
+    _menuOverlayEntry = null;
     _focusNode.removeListener(_onFocusChange);
     if (widget.addressBarFocusNode == null) _focusNode.dispose();
     _textController.dispose();
