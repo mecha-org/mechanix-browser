@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mechanix_browser/core/utils/app_theme.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
+import 'package:mechanix_browser/features/browser/presentation/widgets/app_text_context_menu.dart';
 
 class FavoriteFormFields extends StatelessWidget {
   final TextEditingController nameController;
@@ -31,6 +32,7 @@ class FavoriteFormFields extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         TextFormField(
+          contextMenuBuilder: appTextContextMenu,
           controller: nameController,
           style: TextStyle(color: colors.searchBarText),
           decoration: InputDecoration(
@@ -59,6 +61,7 @@ class FavoriteFormFields extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         TextFormField(
+          contextMenuBuilder: appTextContextMenu,
           controller: urlController,
           keyboardType: TextInputType.url,
           style: TextStyle(color: colors.searchBarText),

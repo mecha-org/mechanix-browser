@@ -6,6 +6,7 @@ import 'package:mechanix_browser/features/browser/data/models/bookmark.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/add_favorite_dialog.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/bookmarks/bookmark_tile.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/bookmarks/current_page_bookmark_card.dart';
+import 'package:mechanix_browser/features/browser/presentation/widgets/list_key_navigation.dart';
 import 'package:mechanix_browser/features/browser/presentation/widgets/list_search_field.dart';
 import 'package:mechanix_browser/l10n/app_localizations.dart';
 import 'package:mechanix_browser/features/browser/data/models/page_transition.dart';
@@ -20,6 +21,25 @@ class BookmarksScreen extends StatefulWidget {
 class _BookmarksScreenState extends State<BookmarksScreen> {
   /// Filters both lists; bookmarks are in memory, so no query is needed.
   String _query = '';
+
+  /// Arrow-key highlight over the favorites, then the bookmarks.
+  final _highlight = ListHighlightController();
+
+  @override
+  void dispose() {
+    _highlight.dispose();
+    super.dispose();
+  }
+
+  void _open(Bookmark bookmark) {
+    context.read<BrowserBloc>().add(
+      BrowserUrlLoadRequested(
+        bookmark.url,
+        transition: PageTransition.autoBookmark,
+      ),
+    );
+    Navigator.pop(context);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -62,8 +82,14 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
               : l10n.openPageFirst;
 
           final isSearching = _query.trim().isNotEmpty;
-          final favorites = state.favorites.where((b) => b.matches(_query));
-          final bookmarks = state.bookmarks.where((b) => b.matches(_query));
+          final favorites = state.favorites
+              .where((b) => b.matches(_query))
+              .toList();
+          final bookmarks = state.bookmarks
+              .where((b) => b.matches(_query))
+              .toList();
+          final rows = [...favorites, ...bookmarks];
+          _highlight.itemCount = rows.length;
 
           return SingleChildScrollView(
             padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -72,6 +98,11 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
               children: [
                 ListSearchField(
                   hintText: l10n.searchBookmarks,
+                  highlight: _highlight,
+                  onSubmitted: () {
+                    final index = _highlight.current;
+                    if (index != null) _open(rows[index]);
+                  },
                   onChanged: (query) => setState(() => _query = query),
                 ),
                 const SizedBox(height: 16),
@@ -114,33 +145,29 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                     ),
                   )
                 else
-                  ...favorites.map(
-                    (fav) => BookmarkTile(
-                      icon: Icons.star_rounded,
-                      iconColor: const Color(0xFF4A90E2),
-                      title: (fav.title != null && fav.title!.trim().isNotEmpty)
-                          ? fav.title!
-                          : fav.url,
-                      subtitle: fav.url,
-                      onTap: () {
-                        bloc.add(
-                          BrowserUrlLoadRequested(
-                            fav.url,
-                            transition: PageTransition.autoBookmark,
-                          ),
-                        );
-                        Navigator.pop(context);
-                      },
-                      onRemove: () {
-                        bloc.add(
-                          BrowserBookmarkRemoved(
-                            id: fav.id,
-                            type: BookmarkType.favorite,
-                          ),
-                        );
-                      },
+                  for (final (index, fav) in favorites.indexed)
+                    HighlightedRow(
+                      controller: _highlight,
+                      index: index,
+                      child: BookmarkTile(
+                        icon: Icons.star_rounded,
+                        iconColor: const Color(0xFF4A90E2),
+                        title:
+                            (fav.title != null && fav.title!.trim().isNotEmpty)
+                            ? fav.title!
+                            : fav.url,
+                        subtitle: fav.url,
+                        onTap: () => _open(fav),
+                        onRemove: () {
+                          bloc.add(
+                            BrowserBookmarkRemoved(
+                              id: fav.id,
+                              type: BookmarkType.favorite,
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                  ),
 
                 const SizedBox(height: 12),
 
@@ -198,33 +225,28 @@ class _BookmarksScreenState extends State<BookmarksScreen> {
                     ),
                   )
                 else
-                  ...bookmarks.map(
-                    (bm) => BookmarkTile(
-                      icon: Icons.bookmark_outline_rounded,
-                      iconColor: colors.textSecondary,
-                      title: (bm.title != null && bm.title!.trim().isNotEmpty)
-                          ? bm.title!
-                          : bm.url,
-                      subtitle: bm.url,
-                      onTap: () {
-                        bloc.add(
-                          BrowserUrlLoadRequested(
-                            bm.url,
-                            transition: PageTransition.autoBookmark,
-                          ),
-                        );
-                        Navigator.pop(context);
-                      },
-                      onRemove: () {
-                        bloc.add(
-                          BrowserBookmarkRemoved(
-                            id: bm.id,
-                            type: BookmarkType.bookmark,
-                          ),
-                        );
-                      },
+                  for (final (index, bm) in bookmarks.indexed)
+                    HighlightedRow(
+                      controller: _highlight,
+                      index: favorites.length + index,
+                      child: BookmarkTile(
+                        icon: Icons.bookmark_outline_rounded,
+                        iconColor: colors.textSecondary,
+                        title: (bm.title != null && bm.title!.trim().isNotEmpty)
+                            ? bm.title!
+                            : bm.url,
+                        subtitle: bm.url,
+                        onTap: () => _open(bm),
+                        onRemove: () {
+                          bloc.add(
+                            BrowserBookmarkRemoved(
+                              id: bm.id,
+                              type: BookmarkType.bookmark,
+                            ),
+                          );
+                        },
+                      ),
                     ),
-                  ),
               ],
             ),
           );
